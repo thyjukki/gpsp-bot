@@ -1,4 +1,6 @@
 use reqwest::{multipart, Client, Body, StatusCode};
+use json::JsonValue;
+use serde_json::Value;
 use tokio::fs::File;
 use tokio_util::codec::{BytesCodec, FramedRead};
 use serde::Serialize;
@@ -7,6 +9,12 @@ use serde::Serialize;
 pub struct DeleteMessage<'a> {
     pub chat_id: &'a i64,
     pub message_id: &'a i64,
+}
+
+#[derive(Serialize)]
+pub struct GetUpdates<'a> {
+    pub timeout: &'a i64,
+    pub offset: &'a i64,
 }
 
 #[derive(Serialize)]
@@ -32,31 +40,39 @@ pub struct SendVideo<'a> {
 }
 
 pub async fn delete_message(token: &str, message: &DeleteMessage<'_>) {
-    send_request(token, "deleteMessage", message).await;
+    let _ = send_request(token, "deleteMessage", message).await;
 }
 
 pub async fn send_message(token: &str, message: &SendMessage<'_>) {
-    send_request(token, "sendMessage", message).await;
+    let _ = send_request(token, "sendMessage", message).await;
 }
 
 pub async fn send_chat_action(token: &str, message: &SendChatAction<'_>) {
-    send_request(token, "sendChatAction", message).await;
+    let test = send_request(token, "sendChatAction", message).await;
+    println!("{:?}", test);
 }
 
-pub async fn send_request<T>(token: &str, method: &str, payload: &T)
+pub async fn get_updates(token: &str, message: &GetUpdates<'_>) -> Result<String, reqwest::Error> {
+    send_request(token, "sendChatAction", message).await
+}
+
+pub async fn send_request<T>(token: &str, method: &str, payload: &T) -> Result<String, reqwest::Error>
 where
     T: Serialize,
 {
     let api_endpoint = format!("https://api.telegram.org/bot{}/{}", token, method);
-    let client = Client::new();
-    let response = client.post(api_endpoint).json(payload).send().await;
-    if let Ok(response) = response {
-        if response.status() != StatusCode::OK {
-            println!("Request failed with status code: {:?}", response.status());
-        }
-    } else if let Err(err) = response {
-        println!("Request error: {:?}", err);
+    let client = reqwest::Client::new();
+    let response = client.post(api_endpoint).json(payload).send().await?;
+    
+    if response.status() != reqwest::StatusCode::OK {
+        println!("Request failed with status code: {:?}", response.status());
     }
+    
+    let body = response.text().await?;
+    println!("content: {:?}", body);
+    let parsed = json::parse(&body);
+    println!("{:?}", parsed);
+    Ok(body)
 }
 
 pub async fn send_video(token: &str, message: &SendVideo<'_>) {
