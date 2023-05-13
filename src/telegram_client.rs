@@ -1,9 +1,9 @@
-use reqwest::{multipart, Client, Body, StatusCode};
+use reqwest::{multipart, Body};
 use json::JsonValue;
-use serde_json::Value;
 use tokio::fs::File;
 use tokio_util::codec::{BytesCodec, FramedRead};
 use serde::Serialize;
+use anyhow::Result;
 
 #[derive(Serialize)]
 pub struct DeleteMessage<'a> {
@@ -48,15 +48,14 @@ pub async fn send_message(token: &str, message: &SendMessage<'_>) {
 }
 
 pub async fn send_chat_action(token: &str, message: &SendChatAction<'_>) {
-    let test = send_request(token, "sendChatAction", message).await;
-    println!("{:?}", test);
+    let _ = send_request(token, "sendChatAction", message).await;
 }
 
-pub async fn get_updates(token: &str, message: &GetUpdates<'_>) -> Result<String, reqwest::Error> {
-    send_request(token, "sendChatAction", message).await
+pub async fn get_updates(token: &str, message: &GetUpdates<'_>) -> Result<JsonValue> {
+    send_request(token, "getUpdates", message).await
 }
 
-pub async fn send_request<T>(token: &str, method: &str, payload: &T) -> Result<String, reqwest::Error>
+pub async fn send_request<T>(token: &str, method: &str, payload: &T) -> Result<JsonValue>
 where
     T: Serialize,
 {
@@ -69,10 +68,8 @@ where
     }
     
     let body = response.text().await?;
-    println!("content: {:?}", body);
-    let parsed = json::parse(&body);
-    println!("{:?}", parsed);
-    Ok(body)
+    let parsed = json::parse(&body)?;
+    Ok(parsed)
 }
 
 pub async fn send_video(token: &str, message: &SendVideo<'_>) {

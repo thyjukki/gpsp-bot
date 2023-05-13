@@ -1,4 +1,3 @@
-use reqwest::Client;
 use tokio::sync::oneshot;
 use std::time::Duration;
 use tokio::time;
@@ -99,41 +98,21 @@ async fn handle_update(update: &JsonValue) {
 }
 
 async fn slow_poll(token: &str) -> ! {
-    let client = Client::new();
     let mut last_update_id = 0;
     let max_threads = 2;
     let semaphore = Arc::new(Semaphore::new(max_threads));
+    let failed_request_grace_period = Duration::from_millis(2000);
 
     loop {
-        let url = format!("https://api.telegram.org/bot{}/getUpdates?timeout=60&offset={}", token, last_update_id + 1);
-
-        let res = match client.get(&url).send().await {
-            Ok(res) => res,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                continue;
-            }
-        };
-
-
-        let body = match res.text().await {
-            Ok(body) => body,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                continue;
-            }
-        };
-
-        let parsed = match json::parse(&body) {
-            Ok(parsed) => parsed,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                continue;
-            }
-        };
+        let t = get_updates(&token, &GetUpdates {
+            timeout: &60,
+            offset: &(&last_update_id + 1)
+        }).await;
+        let parsed = t.unwrap();
 
         let ok = parsed["ok"].as_bool().unwrap_or_default();
         if !ok {
+            time::sleep(failed_request_grace_period).await;
             continue;
         }
 
@@ -141,7 +120,6 @@ async fn slow_poll(token: &str) -> ! {
             JsonValue::Array(arr) => arr,
             _ => panic!("'result' field is not an array")
         };
-
 
         for update in result.clone() {
             if let Some(update_id) = update["update_id"].as_i64() {
@@ -151,7 +129,7 @@ async fn slow_poll(token: &str) -> ! {
 
                 tokio::spawn(async move {
                     handle_update(&update).await;
-                    drop(semaphore_permit); // Release the semaphore permit when the thread is done
+                    drop(semaphore_permit);
                 });
 
                 last_update_id = update_id;
