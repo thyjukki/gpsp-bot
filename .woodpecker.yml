@@ -1,0 +1,34 @@
+pipeline:
+  publish:
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      dockerfile: Containerfile
+      platforms: 
+        - linux/amd64
+      repo:
+        from_secret: TARGET_REPOSITORY
+      registry:
+        from_secret: REGISTRY_HOST
+      tags: latest
+      username: 
+        from_secret: REGISTRY_USER
+      password:
+        from_secret: REGISTRY_PASSWORD
+    when:
+      event: push
+
+  depl:
+    image: appleboy/drone-ssh
+    settings:
+      host:
+        from_secret: PROD_SERVER_HOST
+      username:
+        from_secret: PROD_SERVER_USER
+      key:
+        from_secret: PROD_SERVER_KEY
+      port: 22
+      script:
+        from_secret: DEPLOYMENT_NAME
+    when:
+      event: push
+
