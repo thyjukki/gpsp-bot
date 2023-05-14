@@ -75,13 +75,15 @@ async fn handle_update(update: &JsonValue) {
                         }).await;
                     } else {
                         let actual_path = path;
+                        let dimensions = get_video_dimensions(&actual_path).unwrap();
                         let video = SendVideo {
                             chat_id: &chat_id,
                             reply_to_message_id,
-                            video_location: &actual_path
+                            video_location: &actual_path,
+                            width: dimensions.0,
+                            height: dimensions.1
                         };
                         let r = send_video(&token, &video).await;
-                        println!("{:?}", r);
                         let delete = DeleteMessage {
                             chat_id: &chat_id,
                             message_id: &message_id.unwrap_or_default()

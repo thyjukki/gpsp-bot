@@ -36,7 +36,9 @@ pub struct SendVideo<'a> {
     pub chat_id: &'a i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reply_to_message_id: Option<i64>,
-    pub video_location: &'a str
+    pub video_location: &'a str,
+    pub width: u32,
+    pub height: u32
 }
 
 pub async fn delete_message(token: &str, message: &DeleteMessage<'_>) {
@@ -74,7 +76,7 @@ where
 
 pub async fn send_video(token: &str, message: &SendVideo<'_>) {
     let client = reqwest::Client::new();
-    let api_endpoint = format!("https://api.telegram.org/bot{}/sendVideo?chat_id={}&reply_to_message_id={}&allow_sending_without_reply=true", token, message.chat_id, message.reply_to_message_id.unwrap_or(-1));
+    let api_endpoint = format!("https://api.telegram.org/bot{}/sendVideo?chat_id={}&reply_to_message_id={}&allow_sending_without_reply=true&width={}&height={}", token, message.chat_id, message.reply_to_message_id.unwrap_or(-1), message.width, message.height);
 
     if let Ok(file) = File::open(message.video_location).await {
         let stream = FramedRead::new(file, BytesCodec::new());
