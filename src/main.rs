@@ -75,7 +75,7 @@ async fn handle_update(update: &JsonValue) {
                         }).await;
                     } else {
                         let actual_path = path;
-                        let dimensions = get_video_dimensions(&actual_path).unwrap();
+                        let dimensions = get_video_dimensions(&actual_path).unwrap_or((0,0));
                         let video = SendVideo {
                             chat_id: &chat_id,
                             reply_to_message_id,
