@@ -1,5 +1,6 @@
 use std::process::{Command, Stdio};
 use uuid::Uuid;
+use std::fs;
 
 pub async fn download_video(url: String) -> Option<String> {
     let video_id = Uuid::new_v4();
@@ -74,4 +75,9 @@ pub fn get_video_dimensions(output_path: &str) -> Result<(u32, u32), String> {
         let error_str = String::from_utf8_lossy(&output.stderr);
         Err(format!("ffprobe failed with error code {}: {}", output.status, error_str))
     }
+}
+
+pub fn delete_file(file: &str) -> Result<(), std::io::Error> {
+    fs::remove_file(file)?;
+    Ok(())
 }

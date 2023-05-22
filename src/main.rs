@@ -83,12 +83,14 @@ async fn handle_update(update: &JsonValue) {
                             width: dimensions.0,
                             height: dimensions.1
                         };
-                        let r = send_video(&token, &video).await;
+                        let _r = send_video(&token, &video).await;
                         let delete = DeleteMessage {
                             chat_id: &chat_id,
                             message_id: &message_id.unwrap_or_default()
                         };
                         delete_message(&token, &delete).await;
+                        // TODO - handle this (and many others peroperly)
+                        let _r = delete_file(&actual_path);
                     }
                 } else {
                     eprintln!("The message text does not end with the expected string.");
