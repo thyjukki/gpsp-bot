@@ -12,11 +12,11 @@ pub async fn download_video(url: String) -> Option<String> {
         .arg("--max-filesize")
         .arg("48M") // TG max is 50M
         
-        // Filter videos above certain bitrate, fallback to worst available 
+        // Filter videos above certain bitrate, fallback to best available 
         // video. Usually fallback is used only for direct links when no multiple
         // formats would have been available anyway.
         .arg("-f")
-        .arg("[vbr>400] / w")
+        .arg("[vbr>400] / b")
         
         // .arg("-f")
         // .arg("filesize<=45M")
