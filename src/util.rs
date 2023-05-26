@@ -7,21 +7,11 @@ pub async fn download_video(url: String) -> Option<String> {
     let file_path = format!("/tmp/{}.mp4", video_id);
     let output = Command::new("yt-dlp")
         .arg("-S")
-        .arg("+size,+br,+res,+fps")
+        .arg("res:720,+size,+br,+res,+fps")
 
         .arg("--max-filesize")
         .arg("48M") // TG max is 50M
         
-        // Filter videos above certain bitrate, fallback to best available 
-        // video. Usually fallback is used only for direct links when no multiple
-        // formats would have been available anyway.
-        .arg("-f")
-        .arg("[vbr>400] / b")
-        
-        // .arg("-f")
-        // .arg("filesize<=45M")
-
-
         .arg("--recode")
         .arg("mp4")
 
