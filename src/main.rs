@@ -20,34 +20,56 @@ async fn handle_video_download(stripped: String, token: &str, chat_id: &i64, mes
     let (download_tx, mut download_rx) = oneshot::channel();
     let mut download_finished = false;
 
-    // Spawn the download_video task
+    let token_owned = token.to_string();
+    let chat_id_owned = *chat_id;
     let t = stripped.clone();
+
     let download_task = tokio::spawn(async move {
         let result = download_video(t).await;
-        let _ = download_tx.send(result);
+
+        if let Some(result) = result {
+            println!("Video downloaded: {}", result);
+
+            let actual_path = result;
+            let dimensions = get_video_dimensions(&actual_path).unwrap_or((0, 0));
+            let video = SendVideo {
+                chat_id: &chat_id_owned,
+                reply_to_message_id,
+                video_location: &actual_path,
+                width: dimensions.0,
+                height: dimensions.1,
+            };
+
+            let _r = send_video(&token_owned, &video).await;
+            let delete = DeleteMessage {
+                chat_id: &chat_id_owned,
+                message_id: &message_id.unwrap_or_default(),
+            };
+            delete_message(&token_owned, &delete).await;
+            let _r = delete_file(&actual_path);
+        } else {
+            // Video download failed
+            println!("Video download failed");
+
+            println!("dl failed for url: {}", stripped);
+            telegram_client::send_message(&token_owned, &telegram_client::SendMessage {
+                chat_id: &chat_id_owned,
+                reply_to_message_id: message_id,
+                text: "Hyvä linkki...",
+            }).await;
+        }
+        let _ = download_tx.send("".to_owned());
     });
 
-    // Execute send_chat_action every 2 seconds until download is finished
-    interval.tick().await; // Start the first tick immediately
+    interval.tick().await;
 
-    let mut path: String = "".to_string();
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                // Call send_chat_action every 2 seconds send_chat_action(&token, &SendChatAction { chat_id: &chat_id, action: "upload_video" }).await;
+                send_chat_action(&token, &SendChatAction { chat_id: &chat_id, action: "upload_video" }).await;
             }
-            Ok(download_result) = &mut download_rx => {
-                // Download completed
+            Ok(..) = &mut download_rx => {
                 download_finished = true;
-
-                if let Some(result) = download_result {
-                    // Video downloaded successfully
-                    println!("Video downloaded: {}", result);
-                    path = result;
-                } else {
-                    // Video download failed
-                    println!("Video download failed");
-                }
             }
         }
 
@@ -55,35 +77,11 @@ async fn handle_video_download(stripped: String, token: &str, chat_id: &i64, mes
             break;
         }
     }
-    let _ = download_task.await;
 
-    if path == "" {
-        println!("dl failed for url: {}", stripped);
-        telegram_client::send_message(&token, &telegram_client::SendMessage {
-            chat_id: &chat_id,
-            reply_to_message_id: message_id,
-            text: "Hyvä linkki..."
-        }).await;
-    } else {
-        let actual_path = path;
-        let dimensions = get_video_dimensions(&actual_path).unwrap_or((0,0));
-        let video = SendVideo {
-            chat_id: &chat_id,
-            reply_to_message_id,
-            video_location: &actual_path,
-            width: dimensions.0,
-            height: dimensions.1
-        };
-        let _r = send_video(&token, &video).await;
-        let delete = DeleteMessage {
-            chat_id: &chat_id,
-            message_id: &message_id.unwrap_or_default()
-        };
-        delete_message(&token, &delete).await;
-        // TODO - handle this (and many others peroperly)
-        let _r = delete_file(&actual_path);
-    }
+    let _ = download_task.await;
 }
+
+
 
 async fn handle_update(update: &JsonValue) {
     let token = env::var("TOKEN").unwrap();
