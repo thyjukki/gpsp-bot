@@ -1,7 +1,7 @@
 FROM docker.io/rust:1.67 as bot-builder
 WORKDIR /usr/src/myapp
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --quiet
 
 FROM docker.io/ubuntu:lunar as util-builder
 RUN apt-get update && apt-get install build-essential git zip python3 -y > /dev/null 2>&1
