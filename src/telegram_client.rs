@@ -1,9 +1,9 @@
-use reqwest::{multipart, Body};
+use anyhow::Result;
 use json::JsonValue;
+use reqwest::{multipart, Body};
+use serde::Serialize;
 use tokio::fs::File;
 use tokio_util::codec::{BytesCodec, FramedRead};
-use serde::Serialize;
-use anyhow::Result;
 
 #[derive(Serialize)]
 pub struct DeleteMessage<'a> {
@@ -38,7 +38,7 @@ pub struct SendVideo<'a> {
     pub reply_to_message_id: Option<i64>,
     pub video_location: &'a str,
     pub width: u32,
-    pub height: u32
+    pub height: u32,
 }
 
 pub async fn delete_message(token: &str, message: &DeleteMessage<'_>) {
@@ -64,11 +64,11 @@ where
     let api_endpoint = format!("https://api.telegram.org/bot{}/{}", token, method);
     let client = reqwest::Client::new();
     let response = client.post(api_endpoint).json(payload).send().await?;
-    
+
     if response.status() != reqwest::StatusCode::OK {
         println!("Request failed with status code: {:?}", response.status());
     }
-    
+
     let body = response.text().await?;
     let parsed = json::parse(&body)?;
     Ok(parsed)
@@ -94,4 +94,3 @@ pub async fn send_video(token: &str, message: &SendVideo<'_>) {
         }
     }
 }
-
