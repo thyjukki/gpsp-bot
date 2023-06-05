@@ -1,10 +1,4 @@
 pipeline:
-  lint:
-    image: rustfmt-clippy:stable
-    commands:
-      - cargo fmt --all -- --check
-    when:
-      event: push
   publish:
     image: woodpeckerci/plugin-docker-buildx
     settings:
