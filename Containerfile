@@ -8,7 +8,7 @@ RUN cargo build --release
 RUN cd /tmp && git clone https://github.com/yt-dlp/yt-dlp --depth=1
 RUN cd /tmp/yt-dlp && make yt-dlp
 
-FROM docker.io/debian:bookworm-slim
+FROM docker.io/ubuntu:lunar
 
 RUN apt-get update && apt-get install python3 -y > /dev/null 2>&1 && apt-get clean
 
