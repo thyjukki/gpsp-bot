@@ -1,21 +1,4 @@
 pipeline:
-  publish_amd64:
-    image: woodpeckerci/plugin-docker-buildx
-    settings:
-      dockerfile: Containerfile
-      platforms: 
-        - linux/amd64
-      repo:
-        from_secret: TARGET_REPOSITORY
-      registry:
-        from_secret: REGISTRY_HOST
-      tags: latest
-      username: 
-        from_secret: REGISTRY_USER
-      password:
-        from_secret: REGISTRY_PASSWORD
-    when:
-      event: push
   publish_arm64:
     image: woodpeckerci/plugin-docker-buildx
     settings:
@@ -33,15 +16,23 @@ pipeline:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
-    backend_options:
-      kubernetes:
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: 1
-          limits:
-            memory: "2Gi"
-            cpu: "4"
+  publish_amd64:
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      dockerfile: Containerfile
+      platforms: 
+        - linux/amd64
+      repo:
+        from_secret: TARGET_REPOSITORY
+      registry:
+        from_secret: REGISTRY_HOST
+      tags: latest
+      username: 
+        from_secret: REGISTRY_USER
+      password:
+        from_secret: REGISTRY_PASSWORD
+    when:
+      event: push
 
   depl:
     image: appleboy/drone-ssh
