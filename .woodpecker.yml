@@ -17,6 +17,15 @@ pipeline:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: 1
+          limits:
+            memory: "4Gi"
+            cpu: "4"
 
   depl:
     image: appleboy/drone-ssh
