@@ -24,7 +24,7 @@ pipeline:
             memory: "1Gi"
             cpu: 1
           limits:
-            memory: "4Gi"
+            memory: "2Gi"
             cpu: "4"
 
   depl:
