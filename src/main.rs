@@ -1,5 +1,4 @@
 use json::JsonValue;
-use log::{info, trace, warn};
 use regex::Regex;
 use std::env;
 use std::sync::Arc;
@@ -202,6 +201,6 @@ async fn slow_poll(token: &str) -> ! {
 #[tokio::main]
 async fn main() {
     let token = env::var("TOKEN").unwrap();
-    info!("Bot running");
+    println!("Bot running");
     slow_poll(&token).await;
 }
