@@ -1,10 +1,26 @@
 pipeline:
-  publish:
+  publish_amd64:
     image: woodpeckerci/plugin-docker-buildx
     settings:
       dockerfile: Containerfile
       platforms: 
         - linux/amd64
+      repo:
+        from_secret: TARGET_REPOSITORY
+      registry:
+        from_secret: REGISTRY_HOST
+      tags: latest
+      username: 
+        from_secret: REGISTRY_USER
+      password:
+        from_secret: REGISTRY_PASSWORD
+    when:
+      event: push
+  publish_arm64:
+    image: woodpeckerci/plugin-docker-buildx
+    settings:
+      dockerfile: Containerfile
+      platforms: 
         - linux/aarch64
       repo:
         from_secret: TARGET_REPOSITORY
