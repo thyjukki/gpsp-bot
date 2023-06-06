@@ -5,6 +5,7 @@ pipeline:
       dockerfile: Containerfile
       platforms: 
         - linux/amd64
+        - linux/aarch64
       repo:
         from_secret: TARGET_REPOSITORY
       registry:
