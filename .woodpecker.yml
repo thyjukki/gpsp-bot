@@ -2,7 +2,7 @@ pipeline:
   publish_arm64:
     image: woodpeckerci/plugin-docker-buildx
     settings:
-      dockerfile: Containerfile
+      dockerfile: Containerfile_arm
       platforms: 
         - linux/arm/v7
       repo:
