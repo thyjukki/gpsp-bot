@@ -1,7 +1,8 @@
-FROM docker.io/rust:1.67 as bot-builder
+FROM docker.io/rust:1.68 as bot-builder
 WORKDIR /usr/src/myapp
 COPY . .
-RUN cargo build --release --quiet --config net.git-fetch-with-cli=true
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+RUN cargo build --release --quiet
 
 FROM docker.io/ubuntu:lunar as util-builder
 RUN apt-get update && apt-get install build-essential git zip python3 -y > /dev/null 2>&1
