@@ -1,4 +1,4 @@
-FROM docker.io/rust:1.67 as bot-builder
+FROM arm32v7/rust:1.67-buster as bot-builder
 WORKDIR /usr/src/myapp
 COPY . .
 RUN cargo build --release --config net.git-fetch-with-cli=true
