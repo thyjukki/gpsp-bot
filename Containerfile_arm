@@ -1,6 +1,7 @@
-FROM arm32v7/rust:1.67-buster as bot-builder
+FROM arm32v7/rust:1.68-buster as bot-builder
 WORKDIR /usr/src/myapp
 COPY . .
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 RUN cargo build --release
 
 FROM docker.io/ubuntu:lunar as util-builder
