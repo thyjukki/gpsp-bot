@@ -4,7 +4,7 @@ pipeline:
     settings:
       dockerfile: Containerfile
       platforms: 
-        - linux/arm64
+        - linux/arm32
       repo:
         from_secret: TARGET_REPOSITORY
       registry:
