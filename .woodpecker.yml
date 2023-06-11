@@ -17,7 +17,7 @@ pipeline:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
-      branches: main
+      branch: main
 
   depl_prod:
     image: appleboy/drone-ssh
@@ -33,7 +33,7 @@ pipeline:
         from_secret: PROD_DEPLOYMENT_NAME
     when:
       event: push
-      branches: main
+      branch: main
 
   publish_dev:
     image: woodpeckerci/plugin-docker-buildx
@@ -53,7 +53,7 @@ pipeline:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
-      branches: dev
+      branch: dev
 
   depl_dev:
     image: appleboy/drone-ssh
@@ -69,4 +69,4 @@ pipeline:
         from_secret: DEV_DEPLOYMENT_NAME
     when:
       event: push
-      branches: dev
+      branch: dev
