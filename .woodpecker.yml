@@ -1,39 +1,4 @@
 pipeline:
-  publish_dev:
-    image: woodpeckerci/plugin-docker-buildx
-    settings:
-      dockerfile: Containerfile
-      platforms: 
-        - linux/amd64
-        - linux/arm/v7
-      repo:
-        from_secret: TARGET_REPOSITORY
-      registry:
-        from_secret: REGISTRY_HOST
-      tags: dev
-      username: 
-        from_secret: REGISTRY_USER
-      password: from_secret: REGISTRY_PASSWORD
-    when:
-      event: push
-      branches: dev
-
-  depl_dev:
-    image: appleboy/drone-ssh
-    settings:
-      host:
-        from_secret: DEV_SERVER_HOST
-      username:
-        from_secret: DEV_SERVER_USER
-      key:
-        from_secret: DEV_SERVER_KEY
-      port: 22
-      script:
-        from_secret: DEV_DEPLOYMENT_NAME
-    when:
-      event: push
-      branches: dev
-
   publish_prod:
     image: woodpeckerci/plugin-docker-buildx
     settings:
@@ -48,10 +13,10 @@ pipeline:
       tags: latest
       username: 
         from_secret: REGISTRY_USER
-      password: from_secret: REGISTRY_PASSWORD
+      password:
+        from_secret: REGISTRY_PASSWORD
     when:
       event: push
-      branches: main
 
   depl_prod:
     image: appleboy/drone-ssh
@@ -67,4 +32,3 @@ pipeline:
         from_secret: PROD_DEPLOYMENT_NAME
     when:
       event: push
-      branches: main
