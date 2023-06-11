@@ -16,6 +16,7 @@ pipeline:
       password: from_secret: REGISTRY_PASSWORD
     when:
       event: push
+  branches: main
 
   depl:
     image: appleboy/drone-ssh
@@ -32,4 +33,4 @@ pipeline:
     when:
       event: push
 
-branches: main
+  branches: main
