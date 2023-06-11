@@ -32,4 +32,4 @@ pipeline:
     when:
       event: push
 
-branches: master
+branches: main
