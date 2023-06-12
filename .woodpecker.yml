@@ -50,7 +50,7 @@ pipeline:
         from_secret: TARGET_REPOSITORY
       registry:
         from_secret: REGISTRY_HOST
-      tags: latest
+      tags: dev
       username: 
         from_secret: REGISTRY_USER
       password:
