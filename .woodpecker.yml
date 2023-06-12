@@ -3,8 +3,6 @@ pipeline:
     image: woodpeckerci/plugin-docker-buildx
     settings:
       dockerfile: Containerfile
-      cache_from:
-        from_secret: PROD_CACHE
       platforms: 
         - linux/amd64
         - linux/arm/v7
@@ -41,8 +39,6 @@ pipeline:
     image: woodpeckerci/plugin-docker-buildx
     settings:
       dockerfile: Containerfile
-      cache_from:
-        from_secret: DEV_CACHE
       platforms: 
         - linux/amd64
         - linux/arm/v7
