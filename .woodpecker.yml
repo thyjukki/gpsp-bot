@@ -25,11 +25,11 @@ pipeline:
     image: appleboy/drone-ssh
     settings:
       host:
-        from_secret: SERVER_HOST
+        from_secret: DEPLOYMENT_SERVER_HOST
       username:
-        from_secret: SERVER_USER
+        from_secret: DEPLOYMENT_SERVER_USER
       key:
-        from_secret: SERVER_KEY
+        from_secret: DEPLOYMENT_SERVER_KEY
       port: 22
       script:
         from_secret: PROD_DEPLOYMENT_NAME
@@ -63,11 +63,11 @@ pipeline:
     image: appleboy/drone-ssh
     settings:
       host:
-        from_secret: SERVER_HOST
+        from_secret: DEPLOYMENT_SERVER_HOST
       username:
-        from_secret: SERVER_USER
+        from_secret: DEPLOYMENT_SERVER_USER
       key:
-        from_secret: SERVER_KEY
+        from_secret: DEPLOYMENT_SERVER_KEY
       port: 22
       script:
         from_secret: DEV_DEPLOYMENT_NAME
