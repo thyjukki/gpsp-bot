@@ -1,6 +1,7 @@
 use std::fs;
 use std::process::{Command, Stdio};
 use uuid::Uuid;
+use log::debug;
 
 pub async fn download_video(url: String) -> Option<String> {
     let video_id = Uuid::new_v4();
@@ -24,8 +25,9 @@ pub async fn download_video(url: String) -> Option<String> {
         let output_path = std::fs::canonicalize(&file_path).unwrap();
         return Some(output_path.to_string_lossy().to_string());
     } else {
-        println!("Download failed:");
-        println!("{}", String::from_utf8_lossy(&output.stderr));
+        debug!("yt-dlp failed with\nstdout: {}\nstderr: {}",
+               String::from_utf8_lossy(&output.stdout),
+               String::from_utf8_lossy(&output.stderr));
         return None;
     }
 }

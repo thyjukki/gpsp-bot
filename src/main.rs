@@ -6,6 +6,7 @@ use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::sync::Semaphore;
 use tokio::time;
+use log::{debug, error, info};
 
 mod telegram_client;
 use telegram_client::*;
@@ -20,7 +21,7 @@ async fn handle_video_download(
     message_id: Option<i64>,
     reply_to_message_id: Option<i64>,
 ) {
-    println!("Downloading video from URL: {} to ", stripped);
+    debug!("Downloading video from URL '{}'", stripped);
     send_chat_action(
         &token,
         &SendChatAction {
@@ -41,7 +42,7 @@ async fn handle_video_download(
         let result = download_video(t).await;
 
         if let Some(result) = result {
-            println!("Video downloaded: {}", result);
+            debug!("Video downloaded to path {}", result);
 
             let actual_path = result;
             let dimensions = get_video_dimensions(&actual_path).unwrap_or((0, 0));
@@ -61,10 +62,7 @@ async fn handle_video_download(
             delete_message(&token_owned, &delete).await;
             let _r = delete_file(&actual_path);
         } else {
-            // Video download failed
-            println!("Video download failed");
-
-            println!("dl failed for url: {}", stripped);
+            debug!("download_video failed for url {}", stripped);
             telegram_client::send_message(
                 &token_owned,
                 &telegram_client::SendMessage {
@@ -125,7 +123,7 @@ async fn handle_update(update: &JsonValue) {
                     if let Some(capture) = url_regex.captures(s) {
                         let url = capture.get(0).unwrap().as_str();
                         if is_private_conversation {
-                            println!("First URL (in priv conversation): {}", url);
+                            debug!("Extracted URL from private conversation: {}", url);
                             handle_video_download(
                                 url.to_string(),
                                 &token,
@@ -136,9 +134,9 @@ async fn handle_update(update: &JsonValue) {
                             .await;
                         }
                     } else {
-                        println!("No URL found in the message.");
+                        debug!("No URL found in the message.");
                     }
-                    eprintln!("The message text does not end with the expected string.");
+                    debug!("The message text does not end with the expected string.");
                 }
             }
             _ => return,
@@ -191,7 +189,7 @@ async fn slow_poll(token: &str) -> ! {
 
                 last_update_id = update_id;
             } else {
-                eprintln!("'update_id' field is missing or not an integer");
+                error!("'update_id' field is missing or not an integer");
                 continue;
             }
         }
@@ -200,7 +198,15 @@ async fn slow_poll(token: &str) -> ! {
 
 #[tokio::main]
 async fn main() {
-    let token = env::var("TOKEN").unwrap();
-    println!("Bot running");
+    env_logger::init();
+
+    let maybe_token = env::var("TOKEN");
+    if maybe_token.is_err() {
+        error!("Environment variable 'TOKEN' not found");
+        std::process::exit(1);
+    }
+    let token = maybe_token.unwrap();
+
+    info!("Bot running!");
     slow_poll(&token).await;
 }

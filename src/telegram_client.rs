@@ -4,6 +4,7 @@ use reqwest::{multipart, Body};
 use serde::Serialize;
 use tokio::fs::File;
 use tokio_util::codec::{BytesCodec, FramedRead};
+use log::{debug, error};
 
 #[derive(Serialize)]
 pub struct DeleteMessage<'a> {
@@ -61,12 +62,13 @@ pub async fn send_request<T>(token: &str, method: &str, payload: &T) -> Result<J
 where
     T: Serialize,
 {
+    debug!("Sending {} request to Telegram API", method);
     let api_endpoint = format!("https://api.telegram.org/bot{}/{}", token, method);
     let client = reqwest::Client::new();
     let response = client.post(api_endpoint).json(payload).send().await?;
 
     if response.status() != reqwest::StatusCode::OK {
-        println!("Request failed with status code: {:?}", response.status());
+        error!("Telegram API request failed with status code {:?}", response.status());
     }
 
     let body = response.text().await?;
