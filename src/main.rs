@@ -99,7 +99,13 @@ async fn handle_video_download(
 async fn handle_update(update: &JsonValue) {
     let token = env::var("TOKEN").unwrap();
     if let JsonValue::Object(message) = update {
-        let chat_id = message["message"]["chat"]["id"].as_i64().unwrap();
+        let maybe_chat_id = message["message"]["chat"]["id"].as_i64();
+        if maybe_chat_id.is_none() {
+            // No idea what causes this but doesn't seem to hurt regular usage
+            debug!("Encountered update with no message.chat.id object");
+            return
+        }
+        let chat_id = maybe_chat_id.unwrap();
         let reply_to_message_id = message["message"]["reply_to_message"]["message_id"].as_i64();
         let message_id = message["message"]["message_id"].as_i64();
         let is_private_conversation = message["message"]["chat"]["type"] == "private";
