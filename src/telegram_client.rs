@@ -68,7 +68,7 @@ where
     let response = client.post(api_endpoint).json(payload).send().await?;
 
     if response.status() != reqwest::StatusCode::OK {
-        error!("Telegram API request failed with status code {:?}", response.status());
+        error!("Telegram API request {} failed with status code {:?}", method, response.status());
     }
 
     let body = response.text().await?;
