@@ -1,11 +1,11 @@
 use json::JsonValue;
 use log::{debug, error, info};
-use regex::Regex;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::sync::Semaphore;
 use tokio::time;
+use tokio::task;
 
 mod telegram_client;
 use telegram_client::*;
@@ -13,138 +13,177 @@ use telegram_client::*;
 mod util;
 use util::*;
 
+async fn chat_action_loop(mut rx_done: oneshot::Receiver<()>, token: String, chat_id: i64) {
+    loop {
+        match rx_done.try_recv() {
+            Err(oneshot::error::TryRecvError::Empty) => {
+                send_chat_action(
+                    &token,
+                    &SendChatAction {
+                        chat_id: &chat_id,
+                        action: "upload_video",
+                    },
+                ).await;
+                time::sleep(time::Duration::from_secs(4)).await;
+            }
+            _ => {
+                debug!("Ending action loop");
+                return
+            }
+        }
+
+    }
+}
+
+async fn complain(token: &str, chat_id: &i64, message_id: Option<i64>) {
+    telegram_client::send_message(
+        &token,
+        &telegram_client::SendMessage {
+            chat_id: &chat_id,
+            reply_to_message_id: message_id,
+            text: "Hyvä linkki...",
+        },
+    )
+    .await;
+}
+
+async fn send_video_and_delete_message(
+    token: &str,
+    chat_id: &i64,
+    message_id: &i64,
+    video_location: &str,
+    reply_to_message_id: Option<i64>,
+) {
+    let dimensions = get_video_dimensions(video_location).unwrap_or((0, 0));
+    let video = SendVideo {
+        chat_id,
+        reply_to_message_id,
+        video_location,
+        width: dimensions.0,
+        height: dimensions.1,
+    };
+    let _r = send_video(token, &video).await;
+
+    let delete = DeleteMessage {
+        chat_id,
+        message_id: &message_id,
+    };
+    delete_message(token, &delete).await;
+}
+
 async fn handle_video_download(
     stripped: String,
     token: &str,
     chat_id: &i64,
     message_id: Option<i64>,
     reply_to_message_id: Option<i64>,
+    _is_private_conversation: bool
 ) {
-    debug!("Downloading video from URL '{}'", stripped);
-    send_chat_action(
-        &token,
-        &SendChatAction {
-            chat_id: &chat_id,
-            action: "upload_video",
-        },
-    )
-    .await;
-    let mut interval = time::interval(Duration::from_secs(4));
-    let (download_tx, mut download_rx) = oneshot::channel();
-    let mut download_finished = false;
+    debug!("dl start");
 
-    let token_owned = token.to_string();
-    let chat_id_owned = *chat_id;
-    let t = stripped.clone();
+    let (done_sender, done_receiver) = oneshot::channel();
 
-    let download_task = tokio::spawn(async move {
-        let result = download_video(t).await;
-
-        if let Some(result) = result {
-            debug!("Video downloaded to path {}", result);
-
-            let actual_path = result;
-            let dimensions = get_video_dimensions(&actual_path).unwrap_or((0, 0));
-            let video = SendVideo {
-                chat_id: &chat_id_owned,
-                reply_to_message_id,
-                video_location: &actual_path,
-                width: dimensions.0,
-                height: dimensions.1,
-            };
-
-            let _r = send_video(&token_owned, &video).await;
-            let delete = DeleteMessage {
-                chat_id: &chat_id_owned,
-                message_id: &message_id.unwrap_or_default(),
-            };
-            delete_message(&token_owned, &delete).await;
-            let _r = delete_file(&actual_path);
-        } else {
-            debug!("download_video failed for url {}", stripped);
-            telegram_client::send_message(
-                &token_owned,
-                &telegram_client::SendMessage {
-                    chat_id: &chat_id_owned,
-                    reply_to_message_id: message_id,
-                    text: "Hyvä linkki...",
-                },
-            )
-            .await;
-        }
-        let _ = download_tx.send("".to_owned());
-    });
-
-    interval.tick().await;
-
-    loop {
-        tokio::select! {
-            _ = interval.tick() => {
-                send_chat_action(&token, &SendChatAction { chat_id: &chat_id, action: "upload_video" }).await;
-            }
-            Ok(..) = &mut download_rx => {
-                download_finished = true;
-            }
-        }
-
-        if download_finished {
-            break;
-        }
+    let url = extract_urls(&stripped);
+    if url.len() == 0 {
+        debug!("no url found");
+        complain(&token, &chat_id, message_id).await;
+        return
     }
 
-    let _ = download_task.await;
+    let send_chat_action_handle = task::spawn(chat_action_loop(done_receiver, token.clone().to_string(), chat_id.clone()));
+
+    let download_video_handle = task::spawn(download_video(url[0].clone()));
+
+    let leftovers = stripped.replace(&url[0], "");
+    let whitelisted_chats: Vec<i64> = get_config_value(EnvVariable::OpenAiChats)
+        .split(";")
+        .map(|id| id.parse::<i64>().unwrap_or_default())
+        .collect();
+    // TODO - this whitelisting is not in use right now
+    let _openai_allowed_in_this_chat = whitelisted_chats.contains(chat_id);
+    let parse_cut_args_handle = task::spawn(parse_cut_args(leftovers.clone()));
+
+    debug!("Downloading video from URL '{}'", stripped);
+
+    let sending_video_succeeded = match tokio::join!(download_video_handle, parse_cut_args_handle) {
+        (Ok(download_video_handle_consumed), Ok(parse_cut_args_handle_consumed)) => {
+            match (download_video_handle_consumed, parse_cut_args_handle_consumed) {
+                (None, _) => false,
+                (Some(video_location), None) => { 
+                    send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &video_location, reply_to_message_id).await;
+                    delete_file(&video_location);
+                    true
+                },
+                (Some(video_location), Some(cut_args)) => {
+                    if let Some(cut_video_location) = cut_video(&video_location, &cut_args.0, cut_args.1){
+                        send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &cut_video_location.as_str(), reply_to_message_id).await;
+                        delete_file(&video_location);
+                        delete_file(&cut_video_location);
+                        true
+                    } else {
+                        false
+                    }
+                },
+            }
+        },
+        (Ok(download_video_handle_consumed), Err(_)) => {
+            match download_video_handle_consumed {
+                Some(video_location) => {
+                    send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &video_location, reply_to_message_id).await;
+                    delete_file(&video_location);
+                    true
+                },
+                None => false,
+            }
+        },
+        (Err(_), _) => {
+            debug!("Downloading video has failed");
+            false
+        }
+    };
+
+    if !sending_video_succeeded {
+        complain(&token, &chat_id, message_id).await;
+    }
+
+
+    let _ = done_sender.send(());
+    send_chat_action_handle.await.expect("Send chat action panicked");
 }
 
 async fn handle_update(update: &JsonValue) {
     let token = get_config_value(EnvVariable::TelegramToken);
-    if let JsonValue::Object(message) = update {
+    if let JsonValue::Object(ref message) = update {
         let maybe_chat_id = message["message"]["chat"]["id"].as_i64();
         if maybe_chat_id.is_none() {
-            // No idea what causes this but doesn't seem to hurt regular usage
             debug!("Encountered update with no message.chat.id object");
             return;
         }
         let chat_id = maybe_chat_id.unwrap();
         let reply_to_message_id = message["message"]["reply_to_message"]["message_id"].as_i64();
         let message_id = message["message"]["message_id"].as_i64();
-        let is_private_conversation = message["message"]["chat"]["type"] == "private";
-        let ending_string = " dl";
-        match message["message"]["text"].as_str() {
-            Some(s) => {
-                if let Some(stripped) = s.strip_suffix(ending_string) {
-                    let stripped = stripped.to_string(); // Convert &str to String to pass to download_video
-                                                         // tmp(
-                    handle_video_download(
-                        stripped,
-                        &token,
-                        &chat_id,
-                        message_id,
-                        reply_to_message_id,
-                    )
-                    .await;
-                } else {
-                    let url_regex = Regex::new(r#"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))"#).unwrap();
+        let _is_private_conversation =
+            message["message"]["chat"]["type"].as_str() == Some("private");
 
-                    if let Some(capture) = url_regex.captures(s) {
-                        let url = capture.get(0).unwrap().as_str();
-                        if is_private_conversation {
-                            debug!("Extracted URL from private conversation: {}", url);
-                            handle_video_download(
-                                url.to_string(),
-                                &token,
-                                &chat_id,
-                                message_id,
-                                reply_to_message_id,
-                            )
-                            .await;
-                        }
-                    } else {
-                        debug!("No URL found in the message.");
-                    }
-                    debug!("The message text does not end with the expected string.");
-                }
+        let ending_string = " dl";
+
+        if let Some(text) = message["message"]["text"].as_str() {
+            if let Some(stripped) = text
+                .strip_suffix(ending_string)
+                .map(|s| s.to_string())
+            {
+                handle_video_download(
+                    stripped,
+                    &token,
+                    &chat_id,
+                    message_id,
+                    reply_to_message_id,
+                    _is_private_conversation
+                )
+                .await;
             }
-            _ => return,
+        } else {
+            debug!("no text content");
         }
     }
 }

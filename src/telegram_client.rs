@@ -84,6 +84,7 @@ pub async fn send_video(token: &str, message: &SendVideo<'_>) {
     let client = reqwest::Client::new();
     let api_endpoint = format!("https://api.telegram.org/bot{}/sendVideo?chat_id={}&reply_to_message_id={}&allow_sending_without_reply=true&width={}&height={}", token, message.chat_id, message.reply_to_message_id.unwrap_or(-1), message.width, message.height);
 
+    debug!("Video upload starting for video '{}'", message.video_location);
     if let Ok(file) = File::open(message.video_location).await {
         let stream = FramedRead::new(file, BytesCodec::new());
         let file_body = Body::wrap_stream(stream);
@@ -99,4 +100,5 @@ pub async fn send_video(token: &str, message: &SendVideo<'_>) {
             }
         }
     }
+    debug!("Video upload done for video '{}'", message.video_location);
 }
