@@ -1,0 +1,38 @@
+name: Rust Docker Build and Publish
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    name: Build and Publish Docker Image
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+      IMAGE_NAME: ${{ secrets.DOCKER_IMAGE }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker registry
+        run: docker login $DOCKER_REGISTRY -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+
+      - name: Build and push Docker image
+        run: |
+          docker buildx create --use
+          docker buildx build --platform linux/arm64 -t $DOCKER_REGISTRY/$IMAGE_NAME:latest --push .
+        env:
+          DOCKER_CLI_AARCH64: 1
+          DOCKER_BUILDKIT: 1
