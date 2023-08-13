@@ -1,7 +1,6 @@
 use json::JsonValue;
 use log::{debug, error, info};
 use regex::Regex;
-use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -97,7 +96,7 @@ async fn handle_video_download(
 }
 
 async fn handle_update(update: &JsonValue) {
-    let token = env::var("TOKEN").unwrap();
+    let token = get_config_value(EnvVariable::TelegramToken);
     if let JsonValue::Object(message) = update {
         let maybe_chat_id = message["message"]["chat"]["id"].as_i64();
         if maybe_chat_id.is_none() {
@@ -206,7 +205,7 @@ async fn slow_poll(token: &str) -> ! {
 async fn main() {
     env_logger::init();
 
-    let token = get_config_value("TELEGRAM_TOKEN").expect("No TELEGRAM_TOKEN found");
+    let token = get_config_value(EnvVariable::TelegramToken);
 
     info!("Bot running!");
     slow_poll(&token).await;

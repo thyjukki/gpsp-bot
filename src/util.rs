@@ -1,7 +1,10 @@
+use lazy_static::lazy_static;
 use log::debug;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 use uuid::Uuid;
 
 pub async fn download_video(url: String) -> Option<String> {
@@ -78,14 +81,43 @@ pub fn delete_file(file: &str) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-pub fn get_config_value(key: &str) -> Option<String> {
-    if let Ok(env_value) = env::var(key) {
+pub enum EnvVariable {
+    TelegramToken,
+}
+
+impl EnvVariable {
+    pub fn get_value(&self) -> &str {
+        match self {
+            EnvVariable::TelegramToken => "TELEGRAM_TOKEN",
+        }
+    }
+}
+
+lazy_static! {
+    static ref CONFIG_VALUES: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
+}
+
+pub fn get_config_value(key_enum: EnvVariable) -> String {
+    let key = key_enum.get_value();
+    if let Some(cached_value) = CONFIG_VALUES.lock().unwrap().get(key) {
+        return cached_value.clone();
+    }
+
+    if let Ok(env_value) = env::var(key.clone()) {
         if let Ok(file_content) = fs::read_to_string(&env_value) {
-            Some(file_content)
+            CONFIG_VALUES
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), file_content.clone());
+            file_content
         } else {
-            Some(env_value)
+            CONFIG_VALUES
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), env_value.clone());
+            env_value
         }
     } else {
-        None
+        panic!("No {} variable found", key);
     }
 }
