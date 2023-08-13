@@ -83,41 +83,54 @@ pub fn delete_file(file: &str) -> Result<(), std::io::Error> {
 
 pub enum EnvVariable {
     TelegramToken,
-}
-
-impl EnvVariable {
-    pub fn get_value(&self) -> &str {
-        match self {
-            EnvVariable::TelegramToken => "TELEGRAM_TOKEN",
-        }
-    }
+    OpenAiToken,
+    OpenAiChats,
 }
 
 lazy_static! {
     static ref CONFIG_VALUES: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
 }
 
-pub fn get_config_value(key_enum: EnvVariable) -> String {
-    let key = key_enum.get_value();
-    if let Some(cached_value) = CONFIG_VALUES.lock().unwrap().get(key) {
+impl EnvVariable {
+    pub fn get(&self) -> (&str, Option<&str>) {
+        match self {
+            EnvVariable::TelegramToken => ("TELEGRAM_TOKEN", None),
+            EnvVariable::OpenAiToken => ("OPENAI_TOKEN", Some("")),
+            EnvVariable::OpenAiChats => ("OPENAI_CHATS", Some("")),
+        }
+    }
+}
+
+pub fn get_config_value(env_variable: EnvVariable) -> String {
+    let (env_variable_name, default_value) = env_variable.get();
+    let env_variable_name_file = env::var(format!("{}_FILE", env_variable_name))
+        .unwrap_or("/dev/null/nonexistent".to_string());
+
+    if let Some(cached_value) = CONFIG_VALUES.lock().unwrap().get(env_variable_name) {
         return cached_value.clone();
     }
 
-    if let Ok(env_value) = env::var(key.clone()) {
-        if let Ok(file_content) = fs::read_to_string(&env_value) {
-            CONFIG_VALUES
-                .lock()
-                .unwrap()
-                .insert(key.to_string(), file_content.clone());
-            file_content
-        } else {
-            CONFIG_VALUES
-                .lock()
-                .unwrap()
-                .insert(key.to_string(), env_value.clone());
-            env_value
-        }
-    } else {
-        panic!("No {} variable found", key);
+    fn store_value(env_variable_name: &str, value: &String) {
+        CONFIG_VALUES
+            .lock()
+            .unwrap()
+            .insert(env_variable_name.to_string(), value.to_string());
     }
+
+    if let Ok(env_variable_value) = env::var(env_variable_name.clone()) {
+        store_value(env_variable_name, &env_variable_value);
+    } else if let Ok(env_variable_file_content) = fs::read_to_string(env_variable_name_file.clone())
+    {
+        store_value(env_variable_name, &env_variable_file_content);
+    } else if let Some(env_variable_default_value) = default_value {
+        let env_variable_default_value_string = env_variable_default_value.to_string();
+        store_value(env_variable_name, &env_variable_default_value_string);
+    } else {
+        panic!(
+            "No {} or {} environment variables found",
+            env_variable_name, env_variable_name_file
+        );
+    }
+
+    get_config_value(env_variable)
 }
