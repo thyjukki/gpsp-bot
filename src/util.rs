@@ -1,7 +1,8 @@
+use log::debug;
+use std::env;
 use std::fs;
 use std::process::{Command, Stdio};
 use uuid::Uuid;
-use log::debug;
 
 pub async fn download_video(url: String) -> Option<String> {
     let video_id = Uuid::new_v4();
@@ -25,9 +26,11 @@ pub async fn download_video(url: String) -> Option<String> {
         let output_path = std::fs::canonicalize(&file_path).unwrap();
         return Some(output_path.to_string_lossy().to_string());
     } else {
-        debug!("yt-dlp failed with\nstdout: {}\nstderr: {}",
-               String::from_utf8_lossy(&output.stdout),
-               String::from_utf8_lossy(&output.stderr));
+        debug!(
+            "yt-dlp failed with\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
         return None;
     }
 }
@@ -73,4 +76,16 @@ pub fn get_video_dimensions(output_path: &str) -> Result<(u32, u32), String> {
 pub fn delete_file(file: &str) -> Result<(), std::io::Error> {
     fs::remove_file(file)?;
     Ok(())
+}
+
+pub fn get_config_value(key: &str) -> Option<String> {
+    if let Ok(env_value) = env::var(key) {
+        if let Ok(file_content) = fs::read_to_string(&env_value) {
+            Some(file_content)
+        } else {
+            Some(env_value)
+        }
+    } else {
+        None
+    }
 }

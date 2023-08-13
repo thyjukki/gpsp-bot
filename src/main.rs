@@ -1,4 +1,5 @@
 use json::JsonValue;
+use log::{debug, error, info};
 use regex::Regex;
 use std::env;
 use std::sync::Arc;
@@ -6,7 +7,6 @@ use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::sync::Semaphore;
 use tokio::time;
-use log::{debug, error, info};
 
 mod telegram_client;
 use telegram_client::*;
@@ -103,7 +103,7 @@ async fn handle_update(update: &JsonValue) {
         if maybe_chat_id.is_none() {
             // No idea what causes this but doesn't seem to hurt regular usage
             debug!("Encountered update with no message.chat.id object");
-            return
+            return;
         }
         let chat_id = maybe_chat_id.unwrap();
         let reply_to_message_id = message["message"]["reply_to_message"]["message_id"].as_i64();
@@ -206,12 +206,7 @@ async fn slow_poll(token: &str) -> ! {
 async fn main() {
     env_logger::init();
 
-    let maybe_token = env::var("TOKEN");
-    if maybe_token.is_err() {
-        error!("Environment variable 'TOKEN' not found");
-        std::process::exit(1);
-    }
-    let token = maybe_token.unwrap();
+    let token = get_config_value("TELEGRAM_TOKEN").expect("No TELEGRAM_TOKEN found");
 
     info!("Bot running!");
     slow_poll(&token).await;
