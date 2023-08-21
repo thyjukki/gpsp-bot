@@ -166,14 +166,19 @@ async fn handle_update(update: &JsonValue) {
             message["message"]["chat"]["type"].as_str() == Some("private");
 
         let ending_string = " dl";
+        let starting_string = "!";
 
         if let Some(text) = message["message"]["text"].as_str() {
-            if let Some(stripped) = text
-                .strip_suffix(ending_string)
-                .map(|s| s.to_string())
-            {
+            let text_lowercase = text.to_lowercase();
+            if text_lowercase.starts_with(starting_string) || text_lowercase.ends_with(ending_string) {
+                let stripped = if text.starts_with(starting_string) {
+                    &text[starting_string.len()..]
+                } else {
+                    &text[..text.len() - ending_string.len()]
+                };
+                
                 handle_video_download(
-                    stripped,
+                    stripped.to_string(),
                     &token,
                     &chat_id,
                     message_id,
