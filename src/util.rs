@@ -197,6 +197,19 @@ impl EnvVariable {
     }
 }
 
+pub enum Platform {
+    Discord,
+    Telegram
+}
+
+pub fn get_platform() -> Platform {
+    match std::env::args().nth(1).unwrap_or_default().as_str() {
+        "telegram" => Platform::Telegram,
+        "discord" => Platform::Discord,
+        _ => panic!("Supported platform must be given as a first argument")
+    }
+}
+
 pub fn get_config_value(env_variable: EnvVariable) -> String {
     let (env_variable_name, default_value) = env_variable.get();
     let env_variable_name_file = env::var(format!("{}_FILE", env_variable_name))

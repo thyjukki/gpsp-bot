@@ -323,8 +323,14 @@ async fn slow_poll(token: &str) -> ! {
 async fn main() {
     env_logger::init();
 
-    let token = get_config_value(EnvVariable::TelegramToken);
-
-    info!("Bot running!");
-    slow_poll(&token).await;
+    match get_platform() {
+        Platform::Telegram => {
+            let token = get_config_value(EnvVariable::TelegramToken);
+            info!("Telegram bot running!");
+            slow_poll(&token).await;
+        }
+        Platform::Discord => {
+            info!("Discord bot running");
+        }
+    }
 }
