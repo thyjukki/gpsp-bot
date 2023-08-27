@@ -33,6 +33,12 @@ pub struct SendChatAction<'a> {
 }
 
 #[derive(Serialize)]
+pub struct SendDice<'a> {
+    pub chat_id: &'a i64,
+    pub disable_notification: &'a bool,
+}
+
+#[derive(Serialize)]
 pub struct SendVideo<'a> {
     pub chat_id: &'a i64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -52,6 +58,10 @@ pub async fn send_message(token: &str, message: &SendMessage<'_>) {
 
 pub async fn send_chat_action(token: &str, message: &SendChatAction<'_>) {
     let _ = send_request(token, "sendChatAction", message).await;
+}
+
+pub async fn send_dice(token: &str, message: &SendDice<'_>) -> Result<JsonValue> {
+    send_request(token, "sendDice", message).await
 }
 
 pub async fn get_updates(token: &str, message: &GetUpdates<'_>) -> Result<JsonValue> {

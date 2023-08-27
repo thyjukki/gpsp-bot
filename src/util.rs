@@ -245,7 +245,6 @@ pub fn get_config_value(env_variable: EnvVariable) -> String {
 ///
 /// let result = parse_cut_args("Cut clip 10.5s-1m10s").await;
 /// assert_eq!(result, (10.5, 60.0);
-/// ```
 pub async fn parse_cut_args(msg: String) -> Option<(f64, Option<f64>)> {
     if msg.chars().count() <= 3 {
         return None
@@ -343,4 +342,64 @@ pub fn extract_urls(input: &str) -> Vec<String> {
         .captures_iter(input)
         .map(|capture| capture[1].to_string())
         .collect()
+}
+
+pub async fn better_wording(msg: String) -> Option<String> {
+    if msg.chars().count() <= 3 {
+        return None
+    }
+    let request_body = json::object! {
+        "model": "gpt-3.5-turbo-0613",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a bot that returns a sentence with opposite meaning. Change the wording as needed. You may only use names appearing in the latest message if any."
+            },
+            {
+                "role": "user",
+                "content": "<nimi> menee töihin"
+            },
+            {
+                "role": "assistant",
+                "content": "<nimi> ei mene töihin"
+            },
+            {
+                "role": "user",
+                "content": "laitat auton ostoon"
+            },
+            {
+                "role": "assistant",
+                "content": "et laita autoa ostoon"
+            },
+            {
+                "role": "user",
+                "content": "takaisin töihin"
+            },
+            {
+                "role": "assistant",
+                "content": "ei mennä takaisin töihin"
+            },
+            {
+                "role": "user",
+                "content": msg.clone()
+            }
+        ]
+    };
+
+    let client = Client::new();
+    let token = get_config_value(EnvVariable::OpenAiToken);
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", token))
+        .body(request_body.to_string())
+        .send()
+        .await.expect("openai parsing failed");
+
+    let body = response.text().await.unwrap();
+    let parsed = json::parse(&body).unwrap();
+
+    let result_result =
+        &parsed["choices"][0]["message"]["content"].to_string();
+    Some(result_result.to_string())
 }

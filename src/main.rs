@@ -1,7 +1,8 @@
 use json::JsonValue;
+use std::time::Duration;
+use std::thread;
 use log::{debug, error, info};
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::sync::Semaphore;
 use tokio::time;
@@ -71,30 +72,52 @@ async fn send_video_and_delete_message(
     delete_message(token, &delete).await;
 }
 
+async fn roll(
+    token: String,
+    chat_id: i64
+) -> bool {
+    let noppa1 = send_dice(&token,
+        &SendDice {
+            chat_id: &chat_id,
+            disable_notification: &true
+        }
+    ).await;
+
+    let seconds = Duration::from_secs(2);  
+    thread::sleep(seconds.clone());
+
+    let noppa2 = send_dice(&token,
+        &SendDice {
+            chat_id: &chat_id,
+            disable_notification: &true
+        }
+    ).await;
+    let noppa1_value = noppa1.unwrap()["result"]["dice"]["value"].as_i64().unwrap_or_default();
+    let noppa2_value = noppa2.unwrap()["result"]["dice"]["value"].as_i64().unwrap_or_default();
+
+    debug!("rolled {} and {}", noppa1_value, noppa2_value);
+
+    noppa1_value == noppa2_value
+}
+
 async fn handle_video_download(
     stripped: String,
     token: &str,
     chat_id: &i64,
     message_id: Option<i64>,
     reply_to_message_id: Option<i64>,
+    url: &str,
     _is_private_conversation: bool
 ) {
     debug!("dl start");
 
     let (done_sender, done_receiver) = oneshot::channel();
 
-    let url = extract_urls(&stripped);
-    if url.len() == 0 {
-        debug!("no url found");
-        complain(&token, &chat_id, message_id).await;
-        return
-    }
-
     let send_chat_action_handle = task::spawn(chat_action_loop(done_receiver, token.clone().to_string(), chat_id.clone()));
 
-    let download_video_handle = task::spawn(download_video(url[0].clone()));
+    let download_video_handle = task::spawn(download_video(url.to_string()));
 
-    let leftovers = stripped.replace(&url[0], "");
+    let leftovers = stripped.replace(&url, "");
     let whitelisted_chats: Vec<i64> = get_config_value(EnvVariable::OpenAiChats)
         .split(";")
         .map(|id| id.parse::<i64>().unwrap_or_default())
@@ -167,6 +190,7 @@ async fn handle_update(update: &JsonValue) {
 
         let ending_string = " dl";
         let starting_string = "!";
+        let dubz = "tuplilla";
 
         if let Some(text) = message["message"]["text"].as_str() {
             let text_lowercase = text.to_lowercase();
@@ -176,16 +200,62 @@ async fn handle_update(update: &JsonValue) {
                 } else {
                     &text[..text.len() - ending_string.len()]
                 };
-                
-                handle_video_download(
-                    stripped.to_string(),
-                    &token,
-                    &chat_id,
-                    message_id,
-                    reply_to_message_id,
-                    _is_private_conversation
-                )
-                .await;
+                let url = extract_urls(&stripped);
+                if url.len() == 0 {
+                    debug!("no url found");
+                }
+
+                if url.len() > 0 {
+                    handle_video_download(
+                        stripped.to_string(),
+                        &token,
+                        &chat_id,
+                        message_id,
+                        reply_to_message_id,
+                        &(url[0]),
+                        _is_private_conversation
+                    )
+                    .await;
+                }
+
+                if stripped.starts_with(dubz) {
+
+                    let no_dubz = stripped.replace(dubz, "");
+                    debug!("no dubz: {}, stripped: {}", no_dubz, stripped);
+                    
+                    let roll_handle = task::spawn(roll(token.clone().to_string(), chat_id.clone()));
+                    let worded_handle = task::spawn(better_wording(no_dubz.to_string()));
+                    match tokio::join!(roll_handle, worded_handle) {
+                        (Ok(roll_handle_consumed), Ok(worded_handle_consumed)) => {
+                            match (roll_handle_consumed, worded_handle_consumed) {
+                                (true, _) => {
+                                    debug!("{:?}, {:?}", true, no_dubz);
+                                    send_message(&token, 
+                                        &telegram_client::SendMessage {
+                                            chat_id: &chat_id,
+                                            text: &format!("Tuplat tuli, {} 😎", no_dubz.trim()).to_string(),
+                                            reply_to_message_id: None,
+                                        }).await;
+                                }
+                                (false, Some(worded_handle_consumed_value)) => {
+                                    debug!("{:?}, {:?}", false, worded_handle_consumed_value);
+                                    send_message(&token, 
+                                        &telegram_client::SendMessage {
+                                            chat_id: &chat_id,
+                                            text: &format!("Ei tuplia, {} 😢", worded_handle_consumed_value).to_string(),
+                                            reply_to_message_id: None,
+                                        }).await;
+                                },
+                                (false, None) => {
+                                    error!("openai wording failed");
+                                },
+                            }
+                        }
+                        (_, _) => {
+                            error!("rolling or openai wording failed");                            
+                        },
+                    }
+                }
             }
         } else {
             debug!("no text content");
