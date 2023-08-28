@@ -97,6 +97,10 @@ async fn roll(
 
     debug!("rolled {} and {}", noppa1_value, noppa2_value);
 
+    // tg roll animation takes roughly 4 seconds
+    let seconds = Duration::from_secs(5);  
+    thread::sleep(seconds.clone());
+    
     noppa1_value == noppa2_value
 }
 
