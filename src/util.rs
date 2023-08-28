@@ -181,6 +181,7 @@ pub enum EnvVariable {
     TelegramToken,
     OpenAiToken,
     OpenAiChats,
+    DiscordToken
 }
 
 lazy_static! {
@@ -193,6 +194,7 @@ impl EnvVariable {
             EnvVariable::TelegramToken => ("TELEGRAM_TOKEN", None),
             EnvVariable::OpenAiToken => ("OPENAI_TOKEN", Some("")),
             EnvVariable::OpenAiChats => ("OPENAI_CHATS", Some("")),
+            EnvVariable::DiscordToken => ("DISCORD_TOKEN", None),
         }
     }
 }
