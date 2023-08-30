@@ -203,6 +203,7 @@ pub fn get_config_value(env_variable: EnvVariable) -> String {
         .unwrap_or("/dev/null/nonexistent".to_string());
 
     if let Some(cached_value) = CONFIG_VALUES.lock().unwrap().get(env_variable_name) {
+        debug!("read variable: {}", cached_value);
         return cached_value.clone();
     }
 
