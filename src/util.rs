@@ -203,7 +203,7 @@ pub fn get_config_value(env_variable: EnvVariable) -> String {
         .unwrap_or("/dev/null/nonexistent".to_string());
 
     if let Some(cached_value) = CONFIG_VALUES.lock().unwrap().get(env_variable_name) {
-        debug!("read variable: {}", cached_value);
+        debug!("read variable {}: {}", env_variable_name, cached_value);
         return cached_value.clone();
     }
 
@@ -216,9 +216,8 @@ pub fn get_config_value(env_variable: EnvVariable) -> String {
 
     if let Ok(env_variable_value) = env::var(env_variable_name.clone()) {
         store_value(env_variable_name, &env_variable_value);
-    } else if let Ok(env_variable_file_content) = fs::read_to_string(env_variable_name_file.clone())
-    {
-        store_value(env_variable_name, &env_variable_file_content);
+    } else if let Ok(env_variable_file_content) = fs::read_to_string(env_variable_name_file.clone()) {
+        store_value(env_variable_name, &env_variable_file_content.trim().to_string());
     } else if let Some(env_variable_default_value) = default_value {
         let env_variable_default_value_string = env_variable_default_value.to_string();
         store_value(env_variable_name, &env_variable_default_value_string);
