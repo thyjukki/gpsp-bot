@@ -6,16 +6,21 @@ use std::env;
 use std::fs;
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
+use json::JsonValue;
 use uuid::Uuid;
-use reqwest::Client;
+use reqwest::{Client, Response};
+use rand::Rng;
+pub fn noppa() -> i8 {
+    rand::thread_rng().gen_range(1..=6)
+}
 
-pub async fn download_video(url: String) -> Option<String> {
+
+pub async fn download_video(url: String, target_size_in_m: i8) -> Option<String> {
     let video_id = Uuid::new_v4();
     let file_path = format!("/tmp/{}.mp4", video_id);
-    let target_size_in_m = 50;
     let output = Command::new("yt-dlp")
-        .arg("--max-filesize")
-        .arg(format!("{}M", target_size_in_m))
+        // .arg("--max-filesize")
+        // .arg(format!("{}M", target_size_in_m))
         .arg("-f")
         .arg(format!(
             "((bv*[filesize<={}]/bv*)[height<=720]/(wv*[filesize<={}]/wv*)) + ba / (b[filesize<={}]/b)[height<=720]/(w[filesize<={}]/w)",
@@ -39,17 +44,49 @@ pub async fn download_video(url: String) -> Option<String> {
         "yt-dlp stderr {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    if output.status.success() {
-        let output_path = std::fs::canonicalize(&file_path).unwrap();
-        return Some(output_path.to_string_lossy().to_string());
+    debug!(
+        "yt-dlp stdout {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    return if output.status.success() {
+        let output_path = fs::canonicalize(&file_path).unwrap();
+        Some(output_path.to_string_lossy().to_string())
     } else {
         debug!(
             "yt-dlp failed with\nstdout: {}\nstderr: {}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        return None;
+        None
     }
+}
+
+pub fn truncate_video(
+    path_in: &str,
+    max_file_size_in_megabytes: &i8,
+) -> Option<String> {
+    let path_out = format!("/tmp/{}.mp4", Uuid::new_v4());
+    let cmd = Command::new("ffmpeg")
+        .arg("-i")
+        .arg(path_in)
+        .arg("-c:v")
+        .arg("copy")
+        .arg("-c:a")
+        .arg("copy")
+        .arg("-fs")
+        .arg(format!("{}M", max_file_size_in_megabytes))
+        .arg(path_out.clone())
+        .output()
+        .expect("Failed to execute ffmpeg truncation");
+    debug!(
+        "ffmpeg cut stderr {}",
+        String::from_utf8_lossy(&cmd.stderr)
+    );
+    debug!(
+        "ffmpeg cut stdout {}",
+        String::from_utf8_lossy(&cmd.stdout)
+    );
+    Some(path_out)
 }
 
 pub fn cut_video(
@@ -205,7 +242,7 @@ pub enum Platform {
 }
 
 pub fn get_platform() -> Platform {
-    match std::env::args().nth(1).unwrap_or_default().as_str() {
+    match env::args().nth(1).unwrap_or_default().as_str() {
         "telegram" => Platform::Telegram,
         "discord" => Platform::Discord,
         _ => panic!("Supported platform must be given as a first argument")
@@ -245,6 +282,32 @@ pub fn get_config_value(env_variable: EnvVariable) -> String {
 
     get_config_value(env_variable)
 }
+const ENDING_STRING: &str = " dl";
+const STARTING_STRING: &str = "!";
+pub fn has_command_prefix_or_postfix(msg: &str) -> bool {
+    let lowercase = msg.to_lowercase();
+    lowercase.starts_with(STARTING_STRING) || msg.ends_with(ENDING_STRING)
+}
+
+/// Remove command prefix and postfix from message
+pub fn remove_command_prefix_and_postfix(msg: &str) -> String {
+    let msg = msg.trim();
+    let msg = msg.trim_start_matches(STARTING_STRING).trim();
+    let msg = msg.trim_end_matches(ENDING_STRING).trim();
+    msg.to_string()
+}
+async fn get_openai_response(body: JsonValue) -> Response {
+    let client = Client::new();
+    let token = get_config_value(EnvVariable::OpenAiToken);
+    client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", token))
+        .body(body.to_string())
+        .send()
+        .await.expect("openai parsing failed")
+}
+
 /// Parse start seconds and duration from 
 /// natural language query using OpenAI API 
 ///
@@ -310,16 +373,8 @@ pub async fn parse_cut_args(msg: String) -> Option<(f64, Option<f64>)> {
         ]
     };
 
-    let client = Client::new();
-    let token = get_config_value(EnvVariable::OpenAiToken);
     debug!("OPENAI REQUEST SENDING NEXT");
-    let response = client
-        .post("https://api.openai.com/v1/chat/completions")
-        .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", token))
-        .body(request_body.to_string())
-        .send()
-        .await.expect("openai parsing failed");
+    let response = get_openai_response(request_body).await;
     debug!("OPENAI REQUEST DONE");
 
     let body = response.text().await.unwrap();
@@ -360,6 +415,7 @@ pub fn extract_urls(input: &str) -> Vec<String> {
 }
 
 pub async fn better_wording(msg: String) -> Option<String> {
+    debug!("better wording called with: {}", msg);
     if msg.chars().count() <= 3 {
         return None
     }
@@ -368,7 +424,7 @@ pub async fn better_wording(msg: String) -> Option<String> {
         "messages": [
             {
                 "role": "system",
-                "content": "You are a bot that returns a sentence with opposite meaning. Change the wording as needed. You may only use names appearing in the latest message if any."
+                "content": "Olet botti joka palauttaa lauseen käänteisellä merkityksellä. Voit muuttaa sanamuotoa tarpeen mukaan. Saat luvan lisätä vastaukseen nimen vain jos se esiintyy myös käyttäjän viimeisessä kysymyksessä."
             },
             {
                 "role": "user",
@@ -401,15 +457,7 @@ pub async fn better_wording(msg: String) -> Option<String> {
         ]
     };
 
-    let client = Client::new();
-    let token = get_config_value(EnvVariable::OpenAiToken);
-    let response = client
-        .post("https://api.openai.com/v1/chat/completions")
-        .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", token))
-        .body(request_body.to_string())
-        .send()
-        .await.expect("openai parsing failed");
+    let response = get_openai_response(request_body).await;
 
     let body = response.text().await.unwrap();
     let parsed = json::parse(&body).unwrap();

@@ -1,4 +1,5 @@
 use json::JsonValue;
+
 use std::time::Duration;
 use std::thread;
 use log::{debug, error, info};
@@ -17,6 +18,8 @@ mod telegram_client;
 use telegram_client::*;
 
 mod util;
+mod bot_commands;
+use bot_commands::*;
 use util::*;
 
 
@@ -24,30 +27,88 @@ struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
-    // Set a handler for the `message` event - so that whenever a new message
-    // is received - the closure (or function) passed will be called.
-    //
-    // Event handlers are dispatched through a threadpool, and so multiple
-    // events can be dispatched simultaneously.
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content == "!ping" {
-            // Sending a message can fail, due to a network error, an
-            // authentication error, or lack of permissions to post in the
-            // channel, so log to stdout when some error happens, with a
-            // description of it.
-            msg.channel_id.send_files();
-            if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!").await {
-                println!("Error sending message: {:?}", why);
-            }
+
+        let text = (msg.clone()).content;
+
+        if has_command_prefix_or_postfix(text.as_str()) {
+            let stripped = remove_command_prefix_and_postfix(text.as_str());
+            let command = parse_command(&stripped);
+
+            match command {
+                (BotCommand::Ping, _) => {
+                    msg.channel_id.say(&ctx.http, &"pong").await.expect("pong failed");
+                },
+                (BotCommand::Roll, args) => {
+                    let act = args[0].to_string();
+                    let noppa1 = noppa();
+                    let noppa2 = noppa();
+                    let got_dubz = noppa1 == noppa2;
+                    let maybe_worded_handle = if !got_dubz {
+                        Some(task::spawn(better_wording(act.to_string())))
+                    } else {
+                        None
+                    };
+                    let mut msg_content = format!("Noppa 1: {}", noppa1);
+                    let mut noppa1_msg = msg.reply(&ctx.http, &msg_content).await.expect("noppa failed");
+                    msg.channel_id.broadcast_typing(&ctx.http).await.expect("typing failed");
+
+                    time::sleep(Duration::from_secs(noppa() as u64)).await;
+                    msg_content = format!("Noppa 1: {}\nNoppa 2: {}", noppa1, noppa2);
+
+                    noppa1_msg.edit(&ctx, |m| m.content(msg_content)).await.expect("noppa1_edit failed");
+                    //msg.channel_id.broadcast_typing(&ctx.http).await.expect("typing failed");
+
+                    time::sleep(Duration::from_secs(2)).await;
+                    let dubz_worded = if !got_dubz { maybe_worded_handle.unwrap().await.unwrap() } else { None };
+                    msg_content = format!("Noppa 1: {}\nNoppa 2: {}\n{}", noppa1, noppa2,
+                                          if got_dubz {
+                                              format!("Tuplat tuli, {}. 😎", act.trim())
+                                          } else {
+                                              format!("Ei tuplia, {}. 😿", dubz_worded.unwrap())
+                                          });
+                    noppa1_msg.edit(&ctx, |m| m.content(msg_content)).await.expect("noppa1_edit failed");
+
+                },
+                (BotCommand::Download, args) => {
+                    let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
+                    let send_chat_action_handle = task::spawn(chat_action_discord_loop(done_receiver, msg.clone(), ctx.clone()));
+                    let discord_max_vid_size_in_m = 8;
+                    let download_video_handle = task::spawn(download_video(args[0].to_string(), discord_max_vid_size_in_m));
+                    debug!("Downloading video from URL '{}'", stripped);
+                    let download_video_handle_consumed = download_video_handle.await;
+                    if download_video_handle_consumed.is_ok() {
+                        let video_location = download_video_handle_consumed.unwrap().unwrap();
+                        let t = truncate_video(&video_location, &discord_max_vid_size_in_m.clone()).unwrap();
+                        debug!("cutted video: {}", t);
+                        msg.channel_id.send_files(&ctx.http, vec![t.as_str()], |m| m.content("")).await.expect("Sending file to discord failed");
+                        msg.channel_id.delete_message(&ctx.http, msg.id).await.expect("Deleting message failed");
+                        let _ = done_sender.send(());
+                        send_chat_action_handle.await.expect("Send chat action panicked");
+                    }
+                },
+                (BotCommand::Search, args) => {
+                    let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
+                    let send_chat_action_handle = task::spawn(chat_action_discord_loop(done_receiver, msg.clone(), ctx.clone()));
+                    let discord_max_vid_size_in_m = 8;
+                    let download_video_handle = task::spawn(download_video(format!("ytsearch:\"{}\"" , args[0]), discord_max_vid_size_in_m));
+                    debug!("Downloading video from URL '{}'", stripped);
+                    let download_video_handle_consumed = download_video_handle.await;
+                    if download_video_handle_consumed.is_ok() {
+                        let video_location = download_video_handle_consumed.unwrap().unwrap();
+                        let t = truncate_video(&video_location, &discord_max_vid_size_in_m.clone()).unwrap();
+                        debug!("cutted video: {}", t);
+                        msg.channel_id.send_files(&ctx.http, vec![t.as_str()], |m| m.content("")).await.expect("Sending file to discord failed");
+                        msg.channel_id.delete_message(&ctx.http, msg.id).await.expect("Deleting message failed");
+                        let _ = done_sender.send(());
+                        send_chat_action_handle.await.expect("Send chat action panicked");
+                    }
+                },
+                (BotCommand::Noop, _) => {}
+            };
         }
     }
 
-    // Set a handler to be called on the `ready` event. This is called when a
-    // shard is booted, and a READY payload is sent by Discord. This payload
-    // contains data like the current user's guild Ids, current user data,
-    // private channels, and more.
-    //
-    // In this case, just print what the current user's username is.
     async fn ready(&self, _: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
     }
@@ -55,9 +116,7 @@ impl EventHandler for Handler {
 
 
 
-
-
-async fn chat_action_loop(mut rx_done: oneshot::Receiver<()>, token: String, chat_id: i64) {
+async fn chat_action_telegram_loop(mut rx_done: oneshot::Receiver<()>, token: String, chat_id: i64) {
     loop {
         match rx_done.try_recv() {
             Err(oneshot::error::TryRecvError::Empty) => {
@@ -68,7 +127,7 @@ async fn chat_action_loop(mut rx_done: oneshot::Receiver<()>, token: String, cha
                         action: "upload_video",
                     },
                 ).await;
-                time::sleep(time::Duration::from_secs(4)).await;
+                time::sleep(Duration::from_secs(4)).await;
             }
             _ => {
                 debug!("Ending action loop");
@@ -79,10 +138,26 @@ async fn chat_action_loop(mut rx_done: oneshot::Receiver<()>, token: String, cha
     }
 }
 
-async fn complain(token: &str, chat_id: &i64, message_id: Option<i64>) {
-    telegram_client::send_message(
+async fn chat_action_discord_loop(mut rx_done: oneshot::Receiver<()>, msg: Message, ctx: Context) {
+    loop {
+        match rx_done.try_recv() {
+            Err(oneshot::error::TryRecvError::Empty) => {
+                msg.channel_id.broadcast_typing(&ctx.http).await.expect("typing failed");
+                time::sleep(Duration::from_secs(4)).await;
+            }
+            _ => {
+                debug!("Ending action loop");
+                return
+            }
+        }
+
+    }
+}
+
+async fn complain_telegram(token: &str, chat_id: &i64, message_id: Option<i64>) {
+    send_message(
         &token,
-        &telegram_client::SendMessage {
+        &SendMessage {
             chat_id: &chat_id,
             reply_to_message_id: message_id,
             text: "Hyvä linkki...",
@@ -115,7 +190,7 @@ async fn send_video_and_delete_message(
     delete_message(token, &delete).await;
 }
 
-async fn roll(
+async fn roll_telegram_die(
     token: String,
     chat_id: i64
 ) -> bool {
@@ -124,7 +199,7 @@ async fn roll(
             chat_id: &chat_id,
             disable_notification: &true
         }
-    ).await;
+    ).await.expect("Sending dice 1 failed");
 
     let seconds = Duration::from_secs(2);  
     thread::sleep(seconds.clone());
@@ -134,9 +209,9 @@ async fn roll(
             chat_id: &chat_id,
             disable_notification: &true
         }
-    ).await;
-    let noppa1_value = noppa1.unwrap()["result"]["dice"]["value"].as_i64().unwrap_or_default();
-    let noppa2_value = noppa2.unwrap()["result"]["dice"]["value"].as_i64().unwrap_or_default();
+    ).await.expect("Sending dice 2 failed");
+    let noppa1_value = noppa1["result"]["dice"]["value"].as_i64().unwrap_or_default();
+    let noppa2_value = noppa2["result"]["dice"]["value"].as_i64().unwrap_or_default();
 
     debug!("rolled {} and {}", noppa1_value, noppa2_value);
 
@@ -147,31 +222,33 @@ async fn roll(
     noppa1_value == noppa2_value
 }
 
-async fn handle_video_download(
+async fn handle_telegram_video_download(
     stripped: String,
     token: &str,
     chat_id: &i64,
     message_id: Option<i64>,
     reply_to_message_id: Option<i64>,
     url: &str,
+    leftovers: &str,
     _is_private_conversation: bool
 ) {
     debug!("dl start");
 
     let (done_sender, done_receiver) = oneshot::channel();
 
-    let send_chat_action_handle = task::spawn(chat_action_loop(done_receiver, token.clone().to_string(), chat_id.clone()));
+    let send_chat_action_handle = task::spawn(chat_action_telegram_loop(done_receiver, token.clone().to_string(), chat_id.clone()));
 
-    let download_video_handle = task::spawn(download_video(url.to_string()));
+    let telegram_max_vid_size_in_m = 50;
+    let download_video_handle = task::spawn(download_video(url.to_string(), telegram_max_vid_size_in_m));
 
-    let leftovers = stripped.replace(&url, "");
+    //let leftovers = stripped.replace(&url, "");
     let whitelisted_chats: Vec<i64> = get_config_value(EnvVariable::OpenAiChats)
         .split(";")
         .map(|id| id.parse::<i64>().unwrap_or_default())
         .collect();
     // TODO - this whitelisting is not in use right now
     let _openai_allowed_in_this_chat = whitelisted_chats.contains(chat_id);
-    let parse_cut_args_handle = task::spawn(parse_cut_args(leftovers.clone()));
+    let parse_cut_args_handle = task::spawn(parse_cut_args(leftovers.to_string()));
 
     debug!("Downloading video from URL '{}'", stripped);
 
@@ -213,7 +290,7 @@ async fn handle_video_download(
     };
 
     if !sending_video_succeeded {
-        complain(&token, &chat_id, message_id).await;
+        complain_telegram(&token, &chat_id, message_id).await;
     }
 
 
@@ -221,7 +298,7 @@ async fn handle_video_download(
     send_chat_action_handle.await.expect("Send chat action panicked");
 }
 
-async fn handle_update(update: &JsonValue) {
+async fn handle_telegram_update(update: &JsonValue) {
     let token = get_config_value(EnvVariable::TelegramToken);
     if let JsonValue::Object(ref message) = update {
         let maybe_chat_id = message["message"]["chat"]["id"].as_i64();
@@ -235,74 +312,92 @@ async fn handle_update(update: &JsonValue) {
         let _is_private_conversation =
             message["message"]["chat"]["type"].as_str() == Some("private");
 
-        let ending_string = " dl";
-        let starting_string = "!";
-        let dubz = "tuplilla";
-
         if let Some(text) = message["message"]["text"].as_str() {
-            let text_lowercase = text.to_lowercase();
-            if text_lowercase.starts_with(starting_string) || text_lowercase.ends_with(ending_string) {
-                let stripped = if text.starts_with(starting_string) {
-                    &text[starting_string.len()..]
-                } else {
-                    &text[..text.len() - ending_string.len()]
-                };
-                let url = extract_urls(&stripped);
-                if url.len() == 0 {
-                    debug!("no url found");
-                }
+            if has_command_prefix_or_postfix(text) {
+                let stripped = remove_command_prefix_and_postfix(text);
+                let command = parse_command(&stripped);
+                debug!("command: {}", command.0.to_string());
+                debug!("args: {}", command.1.join(", "));
 
-                if url.len() > 0 {
-                    handle_video_download(
-                        stripped.to_string(),
-                        &token,
-                        &chat_id,
-                        message_id,
-                        reply_to_message_id,
-                        &(url[0]),
-                        _is_private_conversation
-                    )
-                    .await;
-                }
-
-                if stripped.starts_with(dubz) {
-
-                    let no_dubz = stripped.replace(dubz, "");
-                    debug!("no dubz: {}, stripped: {}", no_dubz, stripped);
-                    
-                    let roll_handle = task::spawn(roll(token.clone().to_string(), chat_id.clone()));
-                    let worded_handle = task::spawn(better_wording(no_dubz.to_string()));
-                    match tokio::join!(roll_handle, worded_handle) {
-                        (Ok(roll_handle_consumed), Ok(worded_handle_consumed)) => {
-                            match (roll_handle_consumed, worded_handle_consumed) {
-                                (true, _) => {
-                                    debug!("{:?}, {:?}", true, no_dubz);
-                                    send_message(&token, 
-                                        &telegram_client::SendMessage {
-                                            chat_id: &chat_id,
-                                            text: &format!("Tuplat tuli, {} 😎", no_dubz.trim()).to_string(),
-                                            reply_to_message_id: None,
-                                        }).await;
+                match command {
+                    (BotCommand::Ping, _) => {
+                        send_message(
+                            &token,
+                            &SendMessage {
+                                chat_id: &chat_id,
+                                text: "pong",
+                                reply_to_message_id: None,
+                            },
+                        )
+                        .await;
+                    },
+                    (BotCommand::Download, args) => {
+                        handle_telegram_video_download(
+                            stripped.to_string(),
+                            &token,
+                            &chat_id,
+                            message_id,
+                            reply_to_message_id,
+                            args[0].as_str(),
+                            args[1].as_str(),
+                            _is_private_conversation
+                        )
+                        .await;
+                    },
+                    (BotCommand::Roll, args) => {
+                        let roll_handle = task::spawn(roll_telegram_die(token.clone().to_string(), chat_id.clone()));
+                        let worded_handle = task::spawn(better_wording(args[0].to_string()));
+                        match tokio::join!(roll_handle, worded_handle) {
+                            (Ok(roll_handle_consumed), Ok(worded_handle_consumed)) => {
+                                match (roll_handle_consumed, worded_handle_consumed) {
+                                    (true, _) => {
+                                        debug!("{:?}, {:?}", true, args[0]);
+                                        send_message(&token,
+                                            &SendMessage {
+                                                chat_id: &chat_id,
+                                                text: &format!("Tuplat tuli, {} 😎", args[0].trim()).to_string(),
+                                                reply_to_message_id: None,
+                                            }).await;
+                                    }
+                                    (false, Some(worded_handle_consumed_value)) => {
+                                        debug!("{:?}, {:?}", false, worded_handle_consumed_value);
+                                        send_message(&token,
+                                            &SendMessage {
+                                                chat_id: &chat_id,
+                                                text: &format!("Ei tuplia, {} 😢", worded_handle_consumed_value).to_string(),
+                                                reply_to_message_id: None,
+                                            }).await;
+                                    },
+                                    (false, None) => {
+                                        error!("openai wording failed");
+                                    },
                                 }
-                                (false, Some(worded_handle_consumed_value)) => {
-                                    debug!("{:?}, {:?}", false, worded_handle_consumed_value);
-                                    send_message(&token, 
-                                        &telegram_client::SendMessage {
-                                            chat_id: &chat_id,
-                                            text: &format!("Ei tuplia, {} 😢", worded_handle_consumed_value).to_string(),
-                                            reply_to_message_id: None,
-                                        }).await;
-                                },
-                                (false, None) => {
-                                    error!("openai wording failed");
-                                },
                             }
+                            (_, _) => {
+                                error!("rolling or openai wording failed");
+                            },
                         }
-                        (_, _) => {
-                            error!("rolling or openai wording failed");                            
-                        },
                     }
-                }
+                    (BotCommand::Search, args) => {
+                        let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
+                        let send_chat_action_handle = task::spawn(chat_action_telegram_loop(done_receiver, token.clone().to_string(), chat_id.clone()));
+                        let telegram_max_vid_size_m = 50;
+                        let download_video_handle = task::spawn(download_video(format!("ytsearch:\"{}\"" , args[0]), telegram_max_vid_size_m));
+                        debug!("Downloading video from URL '{}'", stripped);
+                        let download_video_handle_consumed = download_video_handle.await;
+                        if download_video_handle_consumed.is_ok() {
+                            let video_location = download_video_handle_consumed.unwrap().unwrap();
+                            let t = truncate_video(&video_location, &telegram_max_vid_size_m.clone()).unwrap();
+                            debug!("cutted video: {}", t);
+                            send_video_and_delete_message(&token, &chat_id, &message_id.unwrap_or_default(), &t, reply_to_message_id).await;
+                            let _ = done_sender.send(());
+                            send_chat_action_handle.await.expect("Send chat action panicked");
+                        }
+                    }
+                    (BotCommand::Noop, _) => {
+                        debug!("no command");
+                    }
+                };
             }
         } else {
             debug!("no text content");
@@ -349,7 +444,7 @@ async fn telegram_update_loop(token: &str) -> ! {
                     .expect("Semaphore acquire error");
 
                 tokio::spawn(async move {
-                    handle_update(&update).await;
+                    handle_telegram_update(&update).await;
                     drop(semaphore_permit);
                 });
 
@@ -379,6 +474,8 @@ async fn main() {
             // Set gateway intents, which decides what events the bot will be notified about
             let intents = GatewayIntents::GUILD_MESSAGES
                 | GatewayIntents::DIRECT_MESSAGES
+                | GatewayIntents::GUILD_MESSAGE_TYPING
+                | GatewayIntents::DIRECT_MESSAGE_TYPING
                 | GatewayIntents::MESSAGE_CONTENT;
 
             // Create a new instance of the Client, logging in as a bot. This will

@@ -376,6 +376,7 @@ dependencies = [
  "lazy_static",
  "log",
  "openssl",
+ "rand",
  "regex",
  "reqwest",
  "serde",
