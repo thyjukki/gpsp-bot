@@ -10,6 +10,7 @@ use tokio::time;
 use tokio::task;
 
 use serenity::async_trait;
+use serenity::builder::CreateMessage;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
@@ -80,7 +81,58 @@ impl EventHandler for Handler {
                     let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
                     let send_chat_action_handle = task::spawn(chat_action_discord_loop(done_receiver, msg.clone(), ctx.clone()));
                     let download_video_handle = task::spawn(download_video(args[0].to_string(), &DISCORD_SOFT_LIMIT_M));
+                    let parse_cut_args_handle = task::spawn(parse_cut_args(if args.len() > 1 { args[1].to_string() } else { "".to_string() }));
                     debug!("Downloading video from URL '{}'", stripped);
+
+                    let sending_video_succeeded = match tokio::join!(download_video_handle, parse_cut_args_handle) {
+                        (Ok(download_video_handle_consumed), Ok(parse_cut_args_handle_consumed)) => {
+                            match (download_video_handle_consumed, parse_cut_args_handle_consumed) {
+                                (None, _) => false,
+                                (Some(video_location), None) => {
+                                    let compressed = truncate_video(&video_location, &DISCORD_SOFT_LIMIT_M, &DISCORD_HARD_LIMIT_M).unwrap();
+                                    debug!("cutted video: {}", compressed);
+                                    msg.channel_id.send_message(&ctx.http, |m: &mut CreateMessage| {
+                                        m.content("");
+                                        let reply = msg.message_reference.clone();
+                                        if reply.is_some() {
+                                            m.reference_message(reply.unwrap());
+                                        }
+                                        m.add_file(compressed.as_str());
+                                        m
+                                    }).await.expect("Sending file to discord failed");
+                                    true
+                                },
+                                (Some(video_location), Some(cut_args)) => {
+                                    if let Some(cut_video_location) = cut_video(&video_location, &cut_args.0, cut_args.1){
+                                        let compressed = truncate_video(&cut_video_location, &DISCORD_SOFT_LIMIT_M, &DISCORD_HARD_LIMIT_M).unwrap();
+                                        debug!("cutted video: {}", compressed);
+                                        msg.channel_id.send_message(&ctx.http, |m: &mut CreateMessage| {
+                                            m.content("");
+                                            let reply = msg.message_reference.clone();
+                                            if reply.is_some() {
+                                                m.reference_message(reply.unwrap());
+                                            }
+                                            m.add_file(compressed.as_str());
+                                            m
+                                        }).await.expect("Sending file to discord failed");
+                                        delete_file(&cut_video_location);
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                },
+                            }
+                        },
+                        (_,_) => false,
+                    };
+                    if sending_video_succeeded {
+                        msg.channel_id.delete_message(&ctx.http, msg.id).await.expect("Deleting message failed");
+                    } else {
+                        complain_discord(msg, ctx).await;
+                    }
+                    done_sender.send(()).expect("Sending done signal failed");
+                    send_chat_action_handle.await.expect("Send chat action panicked");
+/*
                     let download_video_handle_consumed = download_video_handle.await;
                     if download_video_handle_consumed.is_ok() {
                         let maybe_video_location = download_video_handle_consumed.unwrap();
@@ -91,13 +143,21 @@ impl EventHandler for Handler {
                         let video_location = maybe_video_location.unwrap();
                         let t = truncate_video(&video_location, &DISCORD_SOFT_LIMIT_M, &DISCORD_HARD_LIMIT_M).unwrap();
                         debug!("cutted video: {}", t);
-                        msg.channel_id.send_files(&ctx.http, vec![t.as_str()], |m| m.content("")).await.expect("Sending file to discord failed");
+                        msg.channel_id.send_message(&ctx.http, |m: &mut CreateMessage| {
+                            m.content("");
+                            let reply = msg.message_reference.clone();
+                            if reply.is_some() {
+                                m.reference_message(reply.unwrap());
+                            }
+                            m.add_file(t.as_str());
+                            m
+                        }).await.expect("Sending file to discord failed");
                         msg.channel_id.delete_message(&ctx.http, msg.id).await.expect("Deleting message failed");
                         let _ = done_sender.send(());
                         send_chat_action_handle.await.expect("Send chat action panicked");
                     } else {
                         complain_discord(msg, ctx).await;
-                    }
+                    }*/
                 },
                 (BotCommand::Search, args) => {
                     let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
@@ -109,7 +169,17 @@ impl EventHandler for Handler {
                         let video_location = download_video_handle_consumed.unwrap().unwrap();
                         let t = truncate_video(&video_location, &DISCORD_SOFT_LIMIT_M, &DISCORD_HARD_LIMIT_M).unwrap();
                         debug!("cutted video: {}", t);
-                        msg.channel_id.send_files(&ctx.http, vec![t.as_str()], |m| m.content("")).await.expect("Sending file to discord failed");
+
+                        msg.channel_id.send_message(&ctx.http, |m: &mut CreateMessage| {
+                            m.content("");
+                            let reply = msg.message_reference.clone();
+                            if reply.is_some() {
+                                m.reference_message(reply.unwrap());
+                            }
+                            m.add_file(t.as_str());
+                            m
+                        }).await.expect("Sending file to discord failed");
+
                         msg.channel_id.delete_message(&ctx.http, msg.id).await.expect("Deleting message failed");
                         let _ = done_sender.send(());
                         send_chat_action_handle.await.expect("Send chat action panicked");
