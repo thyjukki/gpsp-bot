@@ -15,7 +15,7 @@ pub fn noppa() -> i8 {
 }
 
 
-pub async fn download_video(url: String, target_size_in_m: i8) -> Option<String> {
+pub async fn download_video(url: String, target_size_in_m: &u64) -> Option<String> {
     let video_id = Uuid::new_v4();
     let file_path = format!("/tmp/{}.mp4", video_id);
     let output = Command::new("yt-dlp")
@@ -61,32 +61,45 @@ pub async fn download_video(url: String, target_size_in_m: i8) -> Option<String>
     }
 }
 
+/// Function for reducing video size
+/// 1. soft limit - if file size is larger than this, use high crf to achieve smaller file size
+/// 2. max file size - if file size still is larger than this, truncate video
 pub fn truncate_video(
     path_in: &str,
-    max_file_size_in_megabytes: &i8,
+    soft_limit_m: &u64,
+    hard_limit_m: &u64,
 ) -> Option<String> {
     let path_out = format!("/tmp/{}.mp4", Uuid::new_v4());
-    let cmd = Command::new("ffmpeg")
-        .arg("-i")
-        .arg(path_in)
-        .arg("-c:v")
-        .arg("copy")
-        .arg("-c:a")
-        .arg("copy")
-        .arg("-fs")
-        .arg(format!("{}M", max_file_size_in_megabytes))
-        .arg(path_out.clone())
-        .output()
-        .expect("Failed to execute ffmpeg truncation");
-    debug!(
-        "ffmpeg cut stderr {}",
-        String::from_utf8_lossy(&cmd.stderr)
-    );
-    debug!(
-        "ffmpeg cut stdout {}",
-        String::from_utf8_lossy(&cmd.stdout)
-    );
-    Some(path_out)
+    let original_file_size_m = fs::metadata(path_in)
+        .expect("Failed to get file metadata")
+        .len()
+        / 1024
+        / 1024;
+    debug!("original file size: {}", original_file_size_m);
+    if original_file_size_m <= *soft_limit_m {
+        return Some(path_in.to_string());
+    } else {
+        let compress_cmd = Command::new("ffmpeg")
+            .arg("-i")
+            .arg(path_in)
+            .arg("-fs")
+            .arg(format!("{}M", hard_limit_m))
+            .arg("-c:v")
+            .arg("libx264")
+            .arg("-preset")
+            .arg("veryfast")
+            .arg("-crf")
+            .arg("39")
+            .arg("-c:a")
+            .arg("aac")
+            .arg("-b:a")
+            .arg("128k")
+            .arg(path_out.clone())
+            .output()
+            .expect("Failed to execute ffmpeg compression");
+        debug!("ffmpeg compress stderr {}", String::from_utf8_lossy(&compress_cmd.stderr));
+        Some(path_out)
+    }
 }
 
 pub fn cut_video(
@@ -420,27 +433,27 @@ pub async fn better_wording(msg: String) -> Option<String> {
         return None
     }
     let request_body = json::object! {
-        "model": "gpt-3.5-turbo-0613",
+        "model": "gpt-3.5-turbo",
         "messages": [
             {
                 "role": "system",
-                "content": "Olet botti joka palauttaa lauseen käänteisellä merkityksellä. Voit muuttaa sanamuotoa tarpeen mukaan. Saat luvan lisätä vastaukseen nimen vain jos se esiintyy myös käyttäjän viimeisessä kysymyksessä."
+                "content": "Olet botti joka palauttaa lauseen kielteisellä merkityksellä. Voit muuttaa sanamuotoa tarpeen mukaan. Saat luvan lisätä vastaukseen nimen vain jos se esiintyy myös käyttäjän viimeisessä viestissä. Nimet ovat todennäköisesti suomalaisia etunimiä."
             },
             {
                 "role": "user",
-                "content": "<nimi> menee töihin"
+                "content": "mikko menee töihin"
             },
             {
                 "role": "assistant",
-                "content": "<nimi> ei mene töihin"
+                "content": "mikko ei mene töihin"
             },
             {
                 "role": "user",
-                "content": "laitat auton ostoon"
+                "content": "auto ostoon"
             },
             {
                 "role": "assistant",
-                "content": "et laita autoa ostoon"
+                "content": "ei laiteta autoa ostoon"
             },
             {
                 "role": "user",

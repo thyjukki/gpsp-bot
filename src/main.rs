@@ -25,6 +25,13 @@ use util::*;
 
 struct Handler;
 
+/// Constants
+const TELEGRAM_SOFT_LIMIT_M: u64 = 20;
+const TELEGRAM_HARD_LIMIT_M: u64 = 50;
+const DISCORD_SOFT_LIMIT_M: u64 = 4;
+const DISCORD_HARD_LIMIT_M: u64 = 8;
+
+
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
@@ -68,35 +75,39 @@ impl EventHandler for Handler {
                                               format!("Ei tuplia, {}. 😿", dubz_worded.unwrap())
                                           });
                     noppa1_msg.edit(&ctx, |m| m.content(msg_content)).await.expect("noppa1_edit failed");
-
                 },
                 (BotCommand::Download, args) => {
                     let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
                     let send_chat_action_handle = task::spawn(chat_action_discord_loop(done_receiver, msg.clone(), ctx.clone()));
-                    let discord_max_vid_size_in_m = 8;
-                    let download_video_handle = task::spawn(download_video(args[0].to_string(), discord_max_vid_size_in_m));
+                    let download_video_handle = task::spawn(download_video(args[0].to_string(), &DISCORD_SOFT_LIMIT_M));
                     debug!("Downloading video from URL '{}'", stripped);
                     let download_video_handle_consumed = download_video_handle.await;
                     if download_video_handle_consumed.is_ok() {
-                        let video_location = download_video_handle_consumed.unwrap().unwrap();
-                        let t = truncate_video(&video_location, &discord_max_vid_size_in_m.clone()).unwrap();
+                        let maybe_video_location = download_video_handle_consumed.unwrap();
+                        if maybe_video_location.is_none() {
+                            complain_discord(msg, ctx).await;
+                            return;
+                        }
+                        let video_location = maybe_video_location.unwrap();
+                        let t = truncate_video(&video_location, &DISCORD_SOFT_LIMIT_M, &DISCORD_HARD_LIMIT_M).unwrap();
                         debug!("cutted video: {}", t);
                         msg.channel_id.send_files(&ctx.http, vec![t.as_str()], |m| m.content("")).await.expect("Sending file to discord failed");
                         msg.channel_id.delete_message(&ctx.http, msg.id).await.expect("Deleting message failed");
                         let _ = done_sender.send(());
                         send_chat_action_handle.await.expect("Send chat action panicked");
+                    } else {
+                        complain_discord(msg, ctx).await;
                     }
                 },
                 (BotCommand::Search, args) => {
                     let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
                     let send_chat_action_handle = task::spawn(chat_action_discord_loop(done_receiver, msg.clone(), ctx.clone()));
-                    let discord_max_vid_size_in_m = 8;
-                    let download_video_handle = task::spawn(download_video(format!("ytsearch:\"{}\"" , args[0]), discord_max_vid_size_in_m));
+                    let download_video_handle = task::spawn(download_video(format!("ytsearch:\"{}\"" , args[0]), &DISCORD_SOFT_LIMIT_M));
                     debug!("Downloading video from URL '{}'", stripped);
                     let download_video_handle_consumed = download_video_handle.await;
                     if download_video_handle_consumed.is_ok() {
                         let video_location = download_video_handle_consumed.unwrap().unwrap();
-                        let t = truncate_video(&video_location, &discord_max_vid_size_in_m.clone()).unwrap();
+                        let t = truncate_video(&video_location, &DISCORD_SOFT_LIMIT_M, &DISCORD_HARD_LIMIT_M).unwrap();
                         debug!("cutted video: {}", t);
                         msg.channel_id.send_files(&ctx.http, vec![t.as_str()], |m| m.content("")).await.expect("Sending file to discord failed");
                         msg.channel_id.delete_message(&ctx.http, msg.id).await.expect("Deleting message failed");
@@ -113,7 +124,6 @@ impl EventHandler for Handler {
         println!("{} is connected!", ready.user.name);
     }
 }
-
 
 
 async fn chat_action_telegram_loop(mut rx_done: oneshot::Receiver<()>, token: String, chat_id: i64) {
@@ -164,6 +174,12 @@ async fn complain_telegram(token: &str, chat_id: &i64, message_id: Option<i64>) 
         },
     )
     .await;
+}
+
+/// Complain about a message containing a non-valid link
+/// reply to the original message
+async fn complain_discord(msg: Message, ctx: Context) {
+    msg.reply(&ctx.http, "Hyvä linkki...").await.expect("Replying to message failed");
 }
 
 async fn send_video_and_delete_message(
@@ -238,8 +254,7 @@ async fn handle_telegram_video_download(
 
     let send_chat_action_handle = task::spawn(chat_action_telegram_loop(done_receiver, token.clone().to_string(), chat_id.clone()));
 
-    let telegram_max_vid_size_in_m = 50;
-    let download_video_handle = task::spawn(download_video(url.to_string(), telegram_max_vid_size_in_m));
+    let download_video_handle = task::spawn(download_video(url.to_string(), &TELEGRAM_SOFT_LIMIT_M));
 
     //let leftovers = stripped.replace(&url, "");
     let whitelisted_chats: Vec<i64> = get_config_value(EnvVariable::OpenAiChats)
@@ -256,15 +271,23 @@ async fn handle_telegram_video_download(
         (Ok(download_video_handle_consumed), Ok(parse_cut_args_handle_consumed)) => {
             match (download_video_handle_consumed, parse_cut_args_handle_consumed) {
                 (None, _) => false,
-                (Some(video_location), None) => { 
-                    send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &video_location, reply_to_message_id).await;
+                (Some(video_location), None) => {
+                    let compressed = truncate_video(&video_location, &TELEGRAM_SOFT_LIMIT_M, &TELEGRAM_HARD_LIMIT_M).unwrap();
+                    send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &compressed, reply_to_message_id).await;
                     delete_file(&video_location);
+                    if video_location != compressed {
+                        delete_file(&compressed);
+                    }
                     true
                 },
                 (Some(video_location), Some(cut_args)) => {
                     if let Some(cut_video_location) = cut_video(&video_location, &cut_args.0, cut_args.1){
-                        send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &cut_video_location.as_str(), reply_to_message_id).await;
+                        let compressed = truncate_video(&video_location, &TELEGRAM_SOFT_LIMIT_M, &TELEGRAM_HARD_LIMIT_M).unwrap();
+                        send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &compressed.as_str(), reply_to_message_id).await;
                         delete_file(&video_location);
+                        if video_location != compressed {
+                            delete_file(&compressed);
+                        }
                         delete_file(&cut_video_location);
                         true
                     } else {
@@ -276,8 +299,12 @@ async fn handle_telegram_video_download(
         (Ok(download_video_handle_consumed), Err(_)) => {
             match download_video_handle_consumed {
                 Some(video_location) => {
-                    send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &video_location, reply_to_message_id).await;
+                    let compressed = truncate_video(&video_location, &TELEGRAM_SOFT_LIMIT_M, &TELEGRAM_HARD_LIMIT_M).unwrap();
+                    send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &compressed, reply_to_message_id).await;
                     delete_file(&video_location);
+                    if video_location != compressed {
+                        delete_file(&compressed);
+                    }
                     true
                 },
                 None => false,
@@ -381,13 +408,12 @@ async fn handle_telegram_update(update: &JsonValue) {
                     (BotCommand::Search, args) => {
                         let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
                         let send_chat_action_handle = task::spawn(chat_action_telegram_loop(done_receiver, token.clone().to_string(), chat_id.clone()));
-                        let telegram_max_vid_size_m = 50;
-                        let download_video_handle = task::spawn(download_video(format!("ytsearch:\"{}\"" , args[0]), telegram_max_vid_size_m));
+                        let download_video_handle = task::spawn(download_video(format!("ytsearch:\"{}\"" , args[0]), &TELEGRAM_SOFT_LIMIT_M));
                         debug!("Downloading video from URL '{}'", stripped);
                         let download_video_handle_consumed = download_video_handle.await;
                         if download_video_handle_consumed.is_ok() {
                             let video_location = download_video_handle_consumed.unwrap().unwrap();
-                            let t = truncate_video(&video_location, &telegram_max_vid_size_m.clone()).unwrap();
+                            let t = truncate_video(&video_location, &TELEGRAM_SOFT_LIMIT_M, &TELEGRAM_HARD_LIMIT_M).unwrap();
                             debug!("cutted video: {}", t);
                             send_video_and_delete_message(&token, &chat_id, &message_id.unwrap_or_default(), &t, reply_to_message_id).await;
                             let _ = done_sender.send(());
