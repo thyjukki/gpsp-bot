@@ -296,16 +296,19 @@ pub fn get_config_value(env_variable: EnvVariable) -> String {
     get_config_value(env_variable)
 }
 const ENDING_STRING: &str = " dl";
-const STARTING_STRING: &str = "!";
+const STARTING_STRINGS: [&str; 2] = ["!", "/"];
 pub fn has_command_prefix_or_postfix(msg: &str) -> bool {
     let lowercase = msg.to_lowercase();
-    lowercase.starts_with(STARTING_STRING) || msg.ends_with(ENDING_STRING)
+    msg.ends_with(ENDING_STRING) || STARTING_STRINGS.iter().any(|&s| lowercase.starts_with(s))
 }
 
 /// Remove command prefix and postfix from message
 pub fn remove_command_prefix_and_postfix(msg: &str) -> String {
     let msg = msg.trim();
-    let msg = msg.trim_start_matches(STARTING_STRING).trim();
+    // iter over starting strings and remove them if found
+    let msg = STARTING_STRINGS.iter().fold(msg.to_string(), |acc, &s| {
+        acc.trim_start_matches(s).trim().to_string()
+    });
     let msg = msg.trim_end_matches(ENDING_STRING).trim();
     msg.to_string()
 }

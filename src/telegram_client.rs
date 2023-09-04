@@ -48,6 +48,20 @@ pub struct SendVideo<'a> {
     pub height: u32,
 }
 
+#[derive(Serialize)]
+pub struct Command<'a> {
+    pub command: &'a str,
+    pub description: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct SetMyCommands<'a> {
+    pub commands: &'a [Command<'a>],
+}
+
+#[derive(Serialize)]
+pub struct Empty {}
+
 pub async fn delete_message(token: &str, message: &DeleteMessage<'_>) {
     let _ = send_request(token, "deleteMessage", message).await;
 }
@@ -66,6 +80,19 @@ pub async fn send_dice(token: &str, message: &SendDice<'_>) -> Result<JsonValue>
 
 pub async fn get_updates(token: &str, message: &GetUpdates<'_>) -> Result<JsonValue> {
     send_request(token, "getUpdates", message).await
+}
+
+pub async fn delete_my_commands(token: &str) -> Result<JsonValue> {
+    let empty = Empty {};
+    send_request(token, "deleteMyCommands",  &empty).await
+}
+
+pub async fn set_my_commands(token: &str, message: &SetMyCommands<'_>) -> Result<JsonValue> {
+    send_request(token, "setMyCommands", message).await
+}
+
+pub async fn get_me(token: &str) -> Result<JsonValue> {
+    send_request(token, "getMe", &Empty {}).await
 }
 
 pub async fn send_request<T>(token: &str, method: &str, payload: &T) -> Result<JsonValue>

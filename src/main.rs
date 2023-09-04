@@ -4,6 +4,7 @@ use std::time::Duration;
 use std::thread;
 use log::{debug, error, info};
 use std::sync::Arc;
+use enum_iterator::all;
 use tokio::sync::oneshot;
 use tokio::sync::Semaphore;
 use tokio::time;
@@ -326,7 +327,7 @@ async fn handle_telegram_video_download(
                 },
                 (Some(video_location), Some(cut_args)) => {
                     if let Some(cut_video_location) = cut_video(&video_location, &cut_args.0, cut_args.1){
-                        let compressed = truncate_video(&video_location, &TELEGRAM_SOFT_LIMIT_M, &TELEGRAM_HARD_LIMIT_M).unwrap();
+                        let compressed = truncate_video(&cut_video_location, &TELEGRAM_SOFT_LIMIT_M, &TELEGRAM_HARD_LIMIT_M).unwrap();
                         send_video_and_delete_message(token, chat_id, &message_id.unwrap_or_default(), &compressed.as_str(), reply_to_message_id).await;
                         delete_file(&video_location);
                         if video_location != compressed {
@@ -377,6 +378,8 @@ async fn handle_telegram_update(update: &JsonValue) {
             debug!("Encountered update with no message.chat.id object");
             return;
         }
+        debug!("{}", update.dump());
+
         let chat_id = maybe_chat_id.unwrap();
         let reply_to_message_id = message["message"]["reply_to_message"]["message_id"].as_i64();
         let message_id = message["message"]["message_id"].as_i64();
@@ -534,6 +537,21 @@ async fn main() {
     match get_platform() {
         Platform::Telegram => {
             let token = get_config_value(EnvVariable::TelegramToken);
+            debug!("{}", get_me(&token).await.expect("Getting bot info failed").dump());
+
+            delete_my_commands(&token).await.expect("Deleting commands failed");
+            let cmds = all::<BotCommand>().collect::<Vec<_>>();
+            let cmd_vec: Vec<Command> = cmds
+                .iter()
+                .map(|cmd| Command {
+                    command: cmd.to_string(),
+                    description: cmd.to_description(),
+                })
+                .filter(|cmd| cmd.description != "")
+                .collect::<Vec<_>>();
+
+            set_my_commands(&token, &SetMyCommands { commands: &cmd_vec }).await.expect("Setting commands failed");
+
             info!("Telegram bot running!");
             telegram_update_loop(&token).await;
         }
