@@ -132,32 +132,6 @@ impl EventHandler for Handler {
                     }
                     done_sender.send(()).expect("Sending done signal failed");
                     send_chat_action_handle.await.expect("Send chat action panicked");
-/*
-                    let download_video_handle_consumed = download_video_handle.await;
-                    if download_video_handle_consumed.is_ok() {
-                        let maybe_video_location = download_video_handle_consumed.unwrap();
-                        if maybe_video_location.is_none() {
-                            complain_discord(msg, ctx).await;
-                            return;
-                        }
-                        let video_location = maybe_video_location.unwrap();
-                        let t = truncate_video(&video_location, &DISCORD_SOFT_LIMIT_M, &DISCORD_HARD_LIMIT_M).unwrap();
-                        debug!("cutted video: {}", t);
-                        msg.channel_id.send_message(&ctx.http, |m: &mut CreateMessage| {
-                            m.content("");
-                            let reply = msg.message_reference.clone();
-                            if reply.is_some() {
-                                m.reference_message(reply.unwrap());
-                            }
-                            m.add_file(t.as_str());
-                            m
-                        }).await.expect("Sending file to discord failed");
-                        msg.channel_id.delete_message(&ctx.http, msg.id).await.expect("Deleting message failed");
-                        let _ = done_sender.send(());
-                        send_chat_action_handle.await.expect("Send chat action panicked");
-                    } else {
-                        complain_discord(msg, ctx).await;
-                    }*/
                 },
                 (BotCommand::Search, args) => {
                     let (done_sender, done_receiver): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
