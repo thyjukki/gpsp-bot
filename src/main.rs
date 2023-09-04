@@ -539,7 +539,8 @@ async fn main() {
             let token = get_config_value(EnvVariable::TelegramToken);
             debug!("{}", get_me(&token).await.expect("Getting bot info failed").dump());
 
-            delete_my_commands(&token).await.expect("Deleting commands failed");
+            // should come up with a better way to do this
+            // delete_my_commands(&token).await.expect("Deleting commands failed");
             let cmds = all::<BotCommand>().collect::<Vec<_>>();
             let cmd_vec: Vec<Command> = cmds
                 .iter()
