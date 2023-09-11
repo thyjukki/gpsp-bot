@@ -440,7 +440,7 @@ pub async fn better_wording(msg: String) -> Option<String> {
         "messages": [
             {
                 "role": "system",
-                "content": "Olet botti joka palauttaa lauseen kielteisellä merkityksellä. Voit muuttaa sanamuotoa tarpeen mukaan. Saat luvan lisätä vastaukseen nimen vain jos se esiintyy myös käyttäjän viimeisessä viestissä. Nimet ovat todennäköisesti suomalaisia etunimiä."
+                "content": "Olet botti joka palauttaa virkkeen kielteisellä merkityksellä. Voit muuttaa sanamuotoja tarpeen mukaan. Saat luvan lisätä vastaukseen nimen vain jos se esiintyy myös käyttäjän viimeisessä viestissä. Nimet ovat todennäköisesti suomalaisia etunimiä. Jos virkkeessä on useampi lause, palauta kielteinen muoto kaikista niistä."
             },
             {
                 "role": "user",
@@ -465,6 +465,14 @@ pub async fn better_wording(msg: String) -> Option<String> {
             {
                 "role": "assistant",
                 "content": "ei mennä takaisin töihin"
+            },
+            {
+                "role": "user",
+                "content": "esitän puhelimessa mikko mallikasta ja jätän 200$ tarjouksen"
+            },
+            {
+                "role": "assistant",
+                "content": "en esitä puhelimessa mikko mallikasta enkä jätä 200$ tarjousta"
             },
             {
                 "role": "user",
