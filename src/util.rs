@@ -14,6 +14,7 @@ pub fn noppa() -> i8 {
     rand::thread_rng().gen_range(1..=6)
 }
 
+const GPT_MODEL: &str = "gpt-3.5-turbo";
 
 pub async fn download_video(url: String, target_size_in_m: &u64) -> Option<String> {
     let video_id = Uuid::new_v4();
@@ -344,7 +345,7 @@ pub async fn parse_cut_args(msg: String) -> Option<(f64, Option<f64>)> {
         return None
     }
     let request_body = json::object! {
-        "model": "gpt-3.5-turbo-0613",
+        "model": GPT_MODEL,
         "messages": [
             {
                 "role": "user",
@@ -436,7 +437,7 @@ pub async fn better_wording(msg: String) -> Option<String> {
         return None
     }
     let request_body = json::object! {
-        "model": "gpt-3.5-turbo",
+        "model": GPT_MODEL,
         "messages": [
             {
                 "role": "system",
