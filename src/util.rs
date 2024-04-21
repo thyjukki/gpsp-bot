@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use regex::Regex;
-use log::debug;
+use log::{debug, info};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -12,6 +12,10 @@ use reqwest::{Client, Response};
 use rand::Rng;
 pub fn noppa() -> i8 {
     rand::thread_rng().gen_range(1..=6)
+}
+
+fn simple_xor(input: &str) -> u8 {
+    input.bytes().fold(0, |acc, b| acc ^ b)
 }
 
 const GPT_MODEL: &str = "gpt-3.5-turbo";
@@ -67,7 +71,10 @@ pub async fn download_video(url: String, target_size_in_m: &u64) -> Option<Strin
     };
 
     for proxy in proxy_urls {
+        let video_id = simple_xor(&url);
+        info!("yt-dlp trying with proxy {}, target {:x}", proxy, video_id);
         if attempt_download(&proxy).is_ok() {
+            info!("yt-dlp success with proxy {}, target {:x}", proxy, video_id);
             let output_path = fs::canonicalize(&file_path).unwrap();
             return Some(output_path.to_string_lossy().to_string());
         }
