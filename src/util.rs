@@ -18,7 +18,7 @@ fn simple_xor(input: &str) -> u8 {
     input.bytes().fold(0, |acc, b| acc ^ b)
 }
 
-const GPT_MODEL: &str = "gpt-3.5-turbo";
+const GPT_MODEL: &str = "gpt-4o-mini";
 
 pub async fn download_video(url: String, target_size_in_m: &u64) -> Option<String> {
     let video_id = Uuid::new_v4();
