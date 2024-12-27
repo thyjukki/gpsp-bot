@@ -1,7 +1,8 @@
 package utils
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -17,7 +18,7 @@ func S2I(s string) int {
 func EnsureTmpDirExists(tmpDir string) {
 	err := os.MkdirAll(tmpDir, 0755)
 	if err != nil {
-		log.Fatalf("Couldn't create tmp dir for yt-dlp, %s", err)
+		panic(fmt.Sprintf("Couldn't create tmp dir for yt-dlp, %s", err))
 	}
 }
 
@@ -25,8 +26,8 @@ func CleanupTmpDir(tmpDir string) {
 	cmd := exec.Command("find", tmpDir, "-type", "f", "-mtime", "+2", "-delete")
 	err := cmd.Run()
 	if err != nil {
-		log.Printf("Error cleaning up tmp dir %s: %v\n", tmpDir, err)
+		slog.Error(fmt.Sprintf("Error cleaning up tmp dir %s: %v\n", tmpDir, err))
 	} else {
-		log.Printf("Cleaned up files older than 2 days in %s\n", tmpDir)
+		slog.Info(fmt.Sprintf("Cleaned up files older than 2 days in %s\n", tmpDir))
 	}
 }
