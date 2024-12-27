@@ -14,8 +14,19 @@ func (mp *GenericMessageHandler) Execute(m *Context) {
 	slog.Debug("rawText: " + m.rawText)
 	var extractedAction string
 	var textWithoutPrefixOrSuffix string
-	textNoPrefix, hasPrefix := strings.CutPrefix(m.rawText, "/")
+
+	prefixes := []string{"/", "!"}
+	textNoPrefix := ""
+	hasPrefix := false
 	textNoSuffix, hasSuffix := strings.CutSuffix(m.rawText, "!")
+
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(m.rawText, prefix) {
+			textNoPrefix, hasPrefix = strings.CutPrefix(m.rawText, prefix)
+			break
+		}
+	}
+
 	if hasPrefix {
 		extractedAction = strings.Split(textNoPrefix, " ")[0]
 		textWithoutPrefixOrSuffix = textNoPrefix
