@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/google/uuid"
+	"github.com/napuu/gpsp-bot/pkg/utils"
 )
 
 type VideoPostprocessingHandler struct {
@@ -123,16 +124,20 @@ func (u *VideoPostprocessingHandler) Execute(m *Context) {
 			durationSeconds := <-m.durationSeconds
 			videoID := uuid.New().String()
 			filePath := fmt.Sprintf("/tmp/%s.mp4", videoID)
+			if utils.FileExists(filePath) {
+				err := cutVideo(m.finalVideoPath, filePath, startSeconds, durationSeconds)
+				if err != nil {
+					panic(err)
+				} else {
+					m.finalVideoPath = filePath
+				}
 
-			err := cutVideo(m.finalVideoPath, filePath, startSeconds, durationSeconds)
-			if err != nil {
-				panic(err)
-			} else {
-				m.finalVideoPath = filePath
 			}
 		}
 
-		m.finalVideoPath = checkAndCompress(m.finalVideoPath, 10)
+		if utils.FileExists(m.finalVideoPath) {
+			m.finalVideoPath = checkAndCompress(m.finalVideoPath, 10)
+		}
 	}
 
 	u.next.Execute(m)

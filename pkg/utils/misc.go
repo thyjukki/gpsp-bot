@@ -31,3 +31,11 @@ func CleanupTmpDir(tmpDir string) {
 		slog.Info(fmt.Sprintf("Cleaned up files older than 2 days in %s\n", tmpDir))
 	}
 }
+
+func FileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
