@@ -14,9 +14,8 @@ func (h *EndOfChainHandler) Execute(m *Context) {
 	if m.doneTyping != nil {
 		slog.Debug("Closing doneTyping channel")
 		close(m.doneTyping)
+		utils.CleanupTmpDir(config.FromEnv().YTDLP_TMP_DIR)
 	}
-
-	utils.CleanupTmpDir(config.FromEnv().YTDLP_TMP_DIR)
 
 }
 
