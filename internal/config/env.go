@@ -21,7 +21,7 @@ func FromEnv() Config {
 	}
 	v := reflect.ValueOf(&cfg).Elem()
 
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		field := v.Type().Field(i)
 		envVar := field.Name
 		envValue, exists := os.LookupEnv(envVar)
