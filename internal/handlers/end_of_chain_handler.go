@@ -14,6 +14,8 @@ func (h *EndOfChainHandler) Execute(m *Context) {
 	if m.doneTyping != nil {
 		slog.Debug("Closing doneTyping channel")
 		close(m.doneTyping)
+	}
+	if m.action == DownloadVideo || m.action == SearchVideo {
 		utils.CleanupTmpDir(config.FromEnv().YTDLP_TMP_DIR)
 	}
 
