@@ -1,4 +1,6 @@
 *
-!src
-!Cargo.toml
-!Cargo.lock
+!go.mod
+!go.sum
+!internal
+!pkg
+!gpsp-bot.go
