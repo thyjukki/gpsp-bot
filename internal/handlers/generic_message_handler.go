@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/napuu/gpsp-bot/internal/config"
 )
 
 type GenericMessageHandler struct {
@@ -36,7 +38,7 @@ func (mp *GenericMessageHandler) Execute(m *Context) {
 		textWithoutPrefixOrSuffix = textNoSuffix
 	}
 
-	if (hasPrefix || hasSuffix) && extractedAction != "" {
+	if (hasPrefix || hasSuffix) && extractedAction != "" && strings.Contains(config.FromEnv().ENABLED_FEATURES, extractedAction) {
 		switch Action(extractedAction) {
 		case DownloadVideo:
 			m.action = DownloadVideo
