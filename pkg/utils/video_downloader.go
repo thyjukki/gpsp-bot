@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
-	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -12,7 +11,7 @@ import (
 )
 
 var (
-	proxyURLs    = strings.Split(config.FromEnv().PROXY_URLS, ";")
+	proxyURLs    = config.ProxyUrls()
 	currentProxy int
 	proxyMutex   sync.Mutex
 )

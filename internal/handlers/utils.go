@@ -12,7 +12,7 @@ func (m Context) SendTyping() {
 	switch m.Service {
 	case Telegram:
 		action := tele.Typing
-		if m.action == DownloadVideo || m.action == SearchVideo {
+		if m.action == DownloadVideo {
 			action = tele.UploadingVideo
 		}
 		err = m.TelebotContext.Notify(action)

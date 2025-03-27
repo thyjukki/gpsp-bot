@@ -30,8 +30,6 @@ func (r *ConstructTextResponseHandler) Execute(m *Context) {
 	case Ping:
 		responseText = "pong"
 	case DownloadVideo:
-		fallthrough
-	case SearchVideo:
 		if m.shouldNagAboutOriginalMessage {
 			responseText = "Hyvä linkki..."
 			m.replyToId = m.id

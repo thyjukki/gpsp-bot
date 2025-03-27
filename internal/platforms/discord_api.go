@@ -2,9 +2,6 @@ package platforms
 
 import (
 	"log/slog"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/napuu/gpsp-bot/internal/chain"
@@ -51,14 +48,4 @@ func RunDiscordBot() {
 		slog.Error("Error opening Discord connection", "error", err)
 		return
 	}
-
-	slog.Info("Discord bot is now running. Press CTRL-C to exit.")
-
-	// Wait for termination signal
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
-	<-sc
-
-	// Cleanly close the session
-	dg.Close()
 }

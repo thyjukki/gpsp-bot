@@ -42,8 +42,6 @@ func (mp *GenericMessageHandler) Execute(m *Context) {
 		switch Action(extractedAction) {
 		case DownloadVideo:
 			m.action = DownloadVideo
-		case SearchVideo:
-			m.action = SearchVideo
 		case Tuplilla:
 			m.action = Tuplilla
 		case Ping:

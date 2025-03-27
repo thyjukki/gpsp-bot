@@ -27,25 +27,15 @@ type ActionDescription string
 const (
 	Tuplilla      Action = "tuplilla"
 	DownloadVideo Action = "dl"
-	SearchVideo   Action = "s"
 	Ping          Action = "ping"
 	Euribor       Action = "euribor"
 )
 
-const (
-	TuplillaDescription      ActionDescription = "Tuplilla..."
-	DownloadVideoDescription ActionDescription = "Lataa video"
-	SearchVideoDescription   ActionDescription = "Etsi ja lataa video YouTubesta"
-	PingDescription          ActionDescription = "Ping..."
-	EuriborDescription       ActionDescription = "Tuoreet Euribor-korot"
-)
-
-func VisibleCommands() map[Action]ActionDescription {
-	return map[Action]ActionDescription{
-		Tuplilla:      TuplillaDescription,
-		DownloadVideo: DownloadVideoDescription,
-		Euribor:       EuriborDescription,
-	}
+var ActionMap = map[Action]ActionDescription{
+	Tuplilla:      "Tuplilla...",
+	DownloadVideo: "Lataa video",
+	Euribor:       "Tuoreet Euribor-korot",
+	Ping:          "Ping",
 }
 
 type Context struct {

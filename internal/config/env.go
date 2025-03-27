@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"reflect"
+	"strings"
 )
 
 type Config struct {
@@ -32,4 +33,12 @@ func FromEnv() Config {
 	}
 
 	return cfg
+}
+
+func ProxyUrls() []string {
+	return strings.Split(FromEnv().PROXY_URLS, ";")
+}
+
+func EnabledFeatures() []string {
+	return strings.Split(FromEnv().ENABLED_FEATURES, ";")
 }

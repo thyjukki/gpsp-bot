@@ -6,7 +6,6 @@ import (
 	"github.com/napuu/gpsp-bot/internal/chain"
 	"github.com/napuu/gpsp-bot/internal/config"
 	"github.com/napuu/gpsp-bot/internal/handlers"
-	"golang.org/x/exp/slog"
 
 	tele "gopkg.in/telebot.v4"
 )
@@ -19,12 +18,11 @@ func wrapTeleHandler(bot *tele.Bot, chain *chain.HandlerChain) func(c tele.Conte
 }
 
 func TelebotCompatibleVisibleCommands() []tele.Command {
-	visible := handlers.VisibleCommands()
-	commands := make([]tele.Command, 0, len(visible))
-	for action, description := range visible {
+	commands := make([]tele.Command, 0, len(config.EnabledFeatures()))
+	for action := range config.EnabledFeatures() {
 		commands = append(commands, tele.Command{
 			Text:        string(action),
-			Description: string(description),
+			Description: string(handlers.ActionMap[handlers.Action(action)]),
 		})
 	}
 	return commands
@@ -36,11 +34,9 @@ func RunTelegramBot() {
 
 	bot.SetCommands(TelebotCompatibleVisibleCommands())
 
-	// bot.Handle(tele.OnMessageReaction, wrapHandler(bot, chain))
 	bot.Handle(tele.OnText, wrapTeleHandler(bot, chain))
 
-	slog.Info("Starting Telegram bot...")
-	bot.Start()
+	go bot.Start()
 }
 
 func getTelegramBot() *tele.Bot {
