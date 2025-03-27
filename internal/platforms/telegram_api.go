@@ -1,6 +1,7 @@
 package platforms
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/napuu/gpsp-bot/internal/chain"
@@ -19,7 +20,10 @@ func wrapTeleHandler(bot *tele.Bot, chain *chain.HandlerChain) func(c tele.Conte
 
 func TelebotCompatibleVisibleCommands() []tele.Command {
 	commands := make([]tele.Command, 0, len(config.EnabledFeatures()))
-	for action := range config.EnabledFeatures() {
+	for _, action := range config.EnabledFeatures() {
+		if handlers.Action(action) == handlers.Ping {
+			continue
+		}
 		commands = append(commands, tele.Command{
 			Text:        string(action),
 			Description: string(handlers.ActionMap[handlers.Action(action)]),
@@ -32,7 +36,10 @@ func RunTelegramBot() {
 	bot := getTelegramBot()
 	chain := chain.NewChainOfResponsibility()
 
-	bot.SetCommands(TelebotCompatibleVisibleCommands())
+	err := bot.SetCommands(TelebotCompatibleVisibleCommands())
+	if err != nil {
+		slog.Error(err.Error())
+	}
 
 	bot.Handle(tele.OnText, wrapTeleHandler(bot, chain))
 
