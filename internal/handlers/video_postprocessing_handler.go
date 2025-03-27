@@ -124,14 +124,11 @@ func (u *VideoPostprocessingHandler) Execute(m *Context) {
 			durationSeconds := <-m.durationSeconds
 			videoID := uuid.New().String()
 			filePath := fmt.Sprintf("/tmp/%s.mp4", videoID)
-			if utils.FileExists(filePath) {
-				err := cutVideo(m.finalVideoPath, filePath, startSeconds, durationSeconds)
-				if err != nil {
-					panic(err)
-				} else {
-					m.finalVideoPath = filePath
-				}
-
+			err := cutVideo(m.finalVideoPath, filePath, startSeconds, durationSeconds)
+			if err != nil {
+				panic(err)
+			} else {
+				m.finalVideoPath = filePath
 			}
 		}
 

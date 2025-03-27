@@ -1,51 +1,13 @@
 package utils
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
+	"log"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/napuu/gpsp-bot/internal/config"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
 )
-
-func getClient() *openai.Client {
-	return openai.NewClient(option.WithAPIKey(config.FromEnv().OPENAI_TOKEN))
-}
-
-func GetNegation(input string) string {
-	client := getClient()
-	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(
-				`Olet botti joka palauttaa virkkeen käänteisellä merkityksellä.
-Voit muuttaa sanamuotoja tarpeen mukaan.
-Saat luvan lisätä vastaukseen nimen vain jos se esiintyy myös käyttäjän viimeisessä viestissä.
-Nimet ovat todennäköisesti suomalaisia etunimiä.
-Jos virkkeessä on useampi lause, palauta kielteinen muoto kaikista niistä.
-Jaan on suomalainen miehen nimi.
-`),
-			openai.UserMessage("mikko menee töihin"),
-			openai.AssistantMessage("mikko ei mene töihin"),
-			openai.UserMessage("auto ostoon"),
-			openai.AssistantMessage("ei laiteta autoa ostoon"),
-			openai.UserMessage("takaisin töihin"),
-			openai.AssistantMessage("ei mennä takaisin töihin"),
-			openai.UserMessage("esitän puhelimessa mikko mallikasta ja jätän 200$ tarjouksen"),
-			openai.AssistantMessage("en esitä puhelimessa mikko mallikasta enkä jätä 200$ tarjousta"),
-			openai.UserMessage(input),
-		}),
-		Model: openai.F(openai.ChatModelGPT4o),
-	})
-	if err != nil {
-		slog.Error(err.Error())
-		return "hyvä prompti..."
-	}
-
-	return chatCompletion.Choices[0].Message.Content
-}
 
 type CutVideoArgs struct {
 	StartMinutes    float64 `json:"start_minutes"`
@@ -54,74 +16,111 @@ type CutVideoArgs struct {
 	DurationSeconds float64 `json:"duration_seconds"`
 }
 
+type ToolCall struct {
+	ID       string          `json:"id"`
+	Type     string          `json:"type"`
+	Function json.RawMessage `json:"function"`
+}
+
+type Choice struct {
+	Index     int        `json:"index"`
+	Message   Message    `json:"message"`
+	ToolCalls []ToolCall `json:"tool_calls"`
+}
+
+type Response struct {
+	ID      string   `json:"id"`
+	Object  string   `json:"object"`
+	Created int64    `json:"created"`
+	Model   string   `json:"model"`
+	Choices []Choice `json:"choices"`
+}
+
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 func ParseCutArgs(msg string) (float64, float64, error) {
-	client := getClient()
 	if len(msg) <= 3 {
 		return 0, 0, nil
 	}
 
-	// Define the request parameters
-	params := openai.ChatCompletionNewParams{
-		Model: openai.F(openai.ChatModelGPT4o),
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage(msg),
-		}),
-		Tools: openai.F([]openai.ChatCompletionToolParam{
-			{
-				Type: openai.F(openai.ChatCompletionToolTypeFunction),
-				Function: openai.F(openai.FunctionDefinitionParam{
-					Name: openai.String("cut_video"),
-					Description: openai.String(
-						`Cut video with subsecond level accuracy. Instructions are likely in English or Finnish.
-						Some examples:
-						* 1m33s- => start_minutes = 1, start_seconds = 60 
-						* 20s-45s- => start_minutes = 0, start_seconds = 20, duration_minutes = 0, duration_seconds = 25
-						* vikat 2m34s => start_minutes = -2, start_seconds = -34
-						* ekat 6m8s => start_minutes = 0, start_seconds = 0, duration_minutes = 6, duration_seconds = 8
-						* 1m3.5s- => start_minutes = 1, start_seconds = 3.5
-						`),
-					Parameters: openai.F(openai.FunctionParameters{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"start_seconds": map[string]string{
-								"type":        "number",
-								"description": "Start seconds of resulting clip. SHOULD BE NEGATIVE if instructed to get e.g. last 15s.",
-							},
-							"start_minutes": map[string]string{
-								"type":        "number",
-								"description": "Start minutes of resulting clip. SHOULD BE NEGATIVE if instructed to get e.g. last 15s.",
-							},
-							"duration_seconds": map[string]string{
-								"type":        "number",
-								"description": "Duration of the resulting clip in seconds or 0 if the clip should continue until end of the video.",
-							},
-							"duration_minutes": map[string]string{
-								"type":        "number",
-								"description": "Duration of the resulting clip in minutes or 0 if the clip should continue until end of the video.",
-							},
+	client := resty.New()
+
+	requestPayload := map[string]any{
+		"response_format": map[string]any{
+			"type": "json_schema",
+			"json_schema": map[string]any{
+				"schema": map[string]any{
+					"title": "VideoCutInstruction",
+					"type":  "object",
+					"properties": map[string]any{
+						"start_minutes": map[string]any{
+							"title": "Start Minutes",
+							"type":  "number",
 						},
-						"required": []string{"start_seconds", "start_minutes"},
-					}),
-				}),
+						"start_seconds": map[string]any{
+							"title": "Start Seconds",
+							"type":  "number",
+						},
+						"duration_minutes": map[string]any{
+							"title": "Duration Minutes",
+							"type":  "number",
+						},
+						"duration_seconds": map[string]any{
+							"title": "Duration Seconds",
+							"type":  "number",
+						},
+					},
+					"required":             []string{"start_minutes", "start_seconds"},
+					"additionalProperties": false,
+				},
+				"name":   "videoCutInstruction",
+				"strict": true,
 			},
-		}),
+		},
+		"messages": []map[string]string{
+			{
+				"role": "system",
+				"content": `Cut video with subsecond level accuracy. Instructions are likely in English or Finnish.
+				Some examples:
+				* 1m33s- => start_minutes = 1, start_seconds = 60
+				* 20s-45s- => start_minutes = 0, start_seconds = 20, duration_minutes = 0, duration_seconds = 25
+				* vikat 2m34s => start_minutes = -2, start_seconds = -34
+				* ekat 6m8s => start_minutes = 0, start_seconds = 0, duration_minutes = 6, duration_seconds = 8
+				* 1m3.5s- => start_minutes = 1, start_seconds = 3.5
+				* last 15s => start_minutes = 0, start_seconds = -15
+				`,
+			},
+			{"role": "user", "content": msg},
+		},
+		"model": "mistral-large-latest",
 	}
 
-	// Execute the OpenAI request
-	ctx := context.Background()
-	completion, err := client.Chat.Completions.New(ctx, params)
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Authorization", fmt.Sprintf("Bearer %s", config.FromEnv().MISTRAL_TOKEN)).
+		SetBody(requestPayload).
+		Post("https://api.mistral.ai/v1/chat/completions")
+
 	if err != nil {
 		return 0, 0, err
 	}
 
-	toolCalls := completion.Choices[0].Message.ToolCalls
-	if len(toolCalls) == 0 {
-		return 0, 0, fmt.Errorf("no function call")
+	var response Response
+	err = json.Unmarshal(resp.Body(), &response)
+	if err != nil {
+		return 0, 0, err
 	}
 
-	// Parse the function call arguments
+	if len(response.Choices) == 0 {
+		return 0, 0, fmt.Errorf("no choices in response")
+	}
+
+	// Parse the JSON content from the response
 	var args CutVideoArgs
-	if err := json.Unmarshal([]byte(toolCalls[0].Function.Arguments), &args); err != nil {
+	if err := json.Unmarshal([]byte(response.Choices[0].Message.Content), &args); err != nil {
 		return 0, 0, err
 	}
 
@@ -129,9 +128,66 @@ func ParseCutArgs(msg string) (float64, float64, error) {
 	startOnlySeconds := args.StartMinutes*60 + args.StartSeconds
 	var durationOnlySeconds float64
 	if args.DurationMinutes > 0 || args.DurationSeconds > 0 {
-		dur := args.DurationMinutes*60 + args.DurationSeconds
-		durationOnlySeconds = dur
+		durationOnlySeconds = args.DurationMinutes*60 + args.DurationSeconds
 	}
 
 	return startOnlySeconds, durationOnlySeconds, nil
+}
+
+type Usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+}
+
+func GetNegation(input string) string {
+	client := resty.New()
+
+	requestPayload := map[string]any{
+		"messages": []map[string]string{
+			{
+				"role": "system",
+				"content": `Olet botti joka palauttaa virkkeen käänteisellä merkityksellä. Seuraa näitä ohjeita:
+- Saat luvan lisätä vastaukseen nimen vain jos se esiintyy myös käyttäjän viimeisässä viestissä.
+- Pyri säilyttämään alkuperäinen kirjoitustyyli.
+- Jos virkkeessä on useampi lause, palauta kielteinen muoto kaikista niistä.
+- Vastauksen verbi on aina passiivissa
+- Jaan on suomalainen miehen nimi.`,
+			},
+			{"role": "user", "content": "mikko menee töihin"},
+			{"role": "assistant", "content": "mikko ei mene töihin"},
+			{"role": "user", "content": "auto ostoon"},
+			{"role": "assistant", "content": "ei laiteta autoa ostoon"},
+			{"role": "user", "content": "takaisin töihin"},
+			{"role": "assistant", "content": "ei mennä takaisin töihin"},
+			{"role": "user", "content": "esitän puhelimessa mikko mallikasta ja jätän 200$ tarjouksen"},
+			{"role": "assistant", "content": "en esitä puhelimessa mikko mallikasta enkä jätä 200$ tarjousta"},
+			{"role": "user", "content": "200k tarjous menemään"},
+			{"role": "assistant", "content": "ei laiteta 200k tarjousta menemään"},
+			{"role": "user", "content": input},
+		},
+		"model": "mistral-large-latest",
+	}
+
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Authorization", fmt.Sprintf("Bearer %s", config.FromEnv().MISTRAL_TOKEN)).
+		SetBody(requestPayload).
+		Post("https://api.mistral.ai/v1/chat/completions")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var response Response
+	err = json.Unmarshal(resp.Body(), &response)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(response.Choices) > 0 {
+		return response.Choices[0].Message.Content
+	}
+
+	return "Hyvä prompti..."
 }

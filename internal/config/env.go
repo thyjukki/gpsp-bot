@@ -9,7 +9,7 @@ import (
 type Config struct {
 	DISCORD_TOKEN    string
 	TELEGRAM_TOKEN   string
-	OPENAI_TOKEN     string
+	MISTRAL_TOKEN    string
 	YTDLP_TMP_DIR    string
 	DATABASE_FILE    string
 	PROXY_URLS       string
