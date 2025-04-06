@@ -38,12 +38,12 @@ no dubz: Ei tuplia 😿, ei tehdä asiaa X
 
 ### Telegram with a lot of features enabled
 ```
-PROXY_URLS=localhost:1235,localhost:1234 \
+PROXY_URLS="localhost:1235;localhost:1234" \
   YTDLP_TMP_DIR=/tmp/yt-dlp \
   DATABASE_FILE=/opt/euribor.db \
   MISTRAL_TOKEN=<mistral token> \
   TELEGRAM_TOKEN=<telegram token> \
-  ENABLED_FEATURES=ping;dl;euribor;tuplilla \
+  ENABLED_FEATURES="ping;dl;euribor;tuplilla" \
   go run gpsp-bot.go telegram
 ```
 
