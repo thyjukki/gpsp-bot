@@ -75,6 +75,7 @@ type Context struct {
 	// Location of the video that is finally sent.
 	// Different handlers might edit this during the processing.
 	finalVideoPath                string
+	finalImagePath                string
 	textResponse                  string
 	sendVideoSucceeded            bool
 	startSeconds                  chan float64
