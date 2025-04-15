@@ -48,6 +48,24 @@ func compressVideo(input, output string, divider int) error {
 	return cmd.Run()
 }
 
+func reencodeToH264(input, output string) error {
+	args := []string{
+		"-i", input,
+		"-c:v", "libx264",
+		"-preset", "fast",
+		"-crf", "23",
+		"-c:a", "aac",
+		"-b:a", "128k",
+		"-movflags", "+faststart", // helpful for web compatibility
+		output,
+	}
+
+	cmd := exec.Command("ffmpeg", args...)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	return cmd.Run()
+}
+
 func truncateVideo(input, output string, sizeMb int) error {
 	args := []string{
 		"-i", input,
@@ -133,6 +151,14 @@ func (u *VideoPostprocessingHandler) Execute(m *Context) {
 		}
 
 		if utils.FileExists(m.finalVideoPath) {
+			// Reencode to H.264 to get rid of VP9
+			h264Path := fmt.Sprintf("%s.h264.mp4", m.finalVideoPath)
+			err := reencodeToH264(m.finalVideoPath, h264Path)
+			if err != nil {
+				panic(err)
+			}
+			m.finalVideoPath = h264Path
+
 			m.finalVideoPath = checkAndCompress(m.finalVideoPath, 10)
 		}
 	}
