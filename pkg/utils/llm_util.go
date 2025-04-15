@@ -152,7 +152,8 @@ func GetNegation(input string) string {
 - Pyri säilyttämään alkuperäinen kirjoitustyyli.
 - Jos virkkeessä on useampi lause, palauta kielteinen muoto kaikista niistä.
 - Vastauksen verbi on aina passiivissa
-- Jaan on suomalainen miehen nimi.`,
+- Jaan on suomalainen miehen nimi.
+- Jos virke on ensimmäisessä persoonassa, käytä vastauksessa toista persoonaa.`,
 			},
 			{"role": "user", "content": "mikko menee töihin"},
 			{"role": "assistant", "content": "mikko ei mene töihin"},
@@ -161,7 +162,7 @@ func GetNegation(input string) string {
 			{"role": "user", "content": "takaisin töihin"},
 			{"role": "assistant", "content": "ei mennä takaisin töihin"},
 			{"role": "user", "content": "esitän puhelimessa mikko mallikasta ja jätän 200$ tarjouksen"},
-			{"role": "assistant", "content": "en esitä puhelimessa mikko mallikasta enkä jätä 200$ tarjousta"},
+			{"role": "assistant", "content": "et esitä puhelimessa mikko mallikasta etkä jätä 200$ tarjousta"},
 			{"role": "user", "content": "200k tarjous menemään"},
 			{"role": "assistant", "content": "ei laiteta 200k tarjousta menemään"},
 			{"role": "user", "content": input},
