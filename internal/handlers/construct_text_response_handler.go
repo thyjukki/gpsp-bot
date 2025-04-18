@@ -26,9 +26,9 @@ func (r *ConstructTextResponseHandler) Execute(m *Context) {
 			}
 			if m.parsedText != "" {
 				if m.gotDubz {
-					responseText += ", " + <-m.dubzNegation
-				} else {
 					responseText += ", " + m.parsedText
+				} else {
+					responseText += ", " + <-m.dubzNegation
 				}
 			}
 			time.Sleep((time.Second * 5) - time.Since(m.lastCubeThrownTime))
