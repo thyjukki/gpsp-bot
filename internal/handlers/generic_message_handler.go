@@ -50,7 +50,7 @@ func (mp *GenericMessageHandler) Execute(m *Context) {
 			m.action = Euribor
 		}
 
-		m.parsedText = strings.Replace(textWithoutPrefixOrSuffix, extractedAction, "", 1)
+		m.parsedText = strings.TrimSpace(strings.Replace(textWithoutPrefixOrSuffix, extractedAction, "", 1))
 	}
 
 	if m.action != "" {

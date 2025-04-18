@@ -59,7 +59,7 @@ func (r *TuplillaResponseHandler) Execute(m *Context) {
 			go func() {
 				if cube1 == cube2 {
 					dubzNegation <- m.parsedText
-				} else {
+				} else if m.parsedText != "" {
 					dubzNegation <- utils.GetNegation(m.parsedText)
 				}
 			}()

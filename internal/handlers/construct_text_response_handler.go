@@ -20,10 +20,16 @@ func (r *ConstructTextResponseHandler) Execute(m *Context) {
 		// it is the only platform with built-in dies
 		if m.Service == Telegram {
 			if m.gotDubz {
-				responseText = fmt.Sprintf("Tuplat tuli 😎, %s", m.parsedText)
+				responseText = "Tuplat tuli 😎"
 			} else {
-				negated := <-m.dubzNegation
-				responseText = fmt.Sprintf("Ei tuplia 😿, %s", negated)
+				responseText = "Ei tuplia 😿"
+			}
+			if m.parsedText != "" {
+				if m.gotDubz {
+					responseText += ", " + <-m.dubzNegation
+				} else {
+					responseText += ", " + m.parsedText
+				}
 			}
 			time.Sleep((time.Second * 5) - time.Since(m.lastCubeThrownTime))
 		}
