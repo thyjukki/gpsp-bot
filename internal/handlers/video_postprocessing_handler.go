@@ -154,7 +154,7 @@ func (u *VideoPostprocessingHandler) Execute(m *Context) {
 				slog.Info("api.video post-processing successful")
 				m.finalVideoPath = processedPath
 				// Compression is handled by api.video, maybe just check size
-				m.finalVideoPath = checkAndCompress(m.finalVideoPath, 10)
+				m.finalVideoPath = checkAndCompress(m.finalVideoPath, 32)
 				u.next.Execute(m)
 				return
 			}
@@ -181,7 +181,7 @@ func (u *VideoPostprocessingHandler) Execute(m *Context) {
 			}
 			m.finalVideoPath = h264Path
 
-			m.finalVideoPath = checkAndCompress(m.finalVideoPath, 10)
+			m.finalVideoPath = checkAndCompress(m.finalVideoPath, 32)
 		}
 	}
 
