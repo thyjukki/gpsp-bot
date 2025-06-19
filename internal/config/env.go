@@ -15,6 +15,7 @@ type Config struct {
 	PROXY_URLS        string
 	ENABLED_FEATURES  string
 	EURIBOR_CSV_DIR   string
+	APIVIDEO_API_KEY  string
 }
 
 func FromEnv() Config {
@@ -39,6 +40,10 @@ func FromEnv() Config {
 
 func ProxyUrls() []string {
 	return strings.Split(FromEnv().PROXY_URLS, ";")
+}
+
+func IsApiVideoEnabled() bool {
+	return FromEnv().APIVIDEO_API_KEY != ""
 }
 
 func EnabledFeatures() []string {

@@ -21,6 +21,7 @@ require (
 
 require (
 	github.com/apache/arrow-go/v18 v18.0.0 // indirect
+	github.com/apivideo/api.video-go-client v1.4.7 // indirect
 	github.com/chromedp/cdproto v0.0.0-20231011050154-1d073bb38998 // indirect
 	github.com/chromedp/chromedp v0.9.3 // indirect
 	github.com/chromedp/sysutil v1.0.0 // indirect

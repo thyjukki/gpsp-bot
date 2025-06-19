@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/google/uuid"
+	"github.com/napuu/gpsp-bot/internal/config"
 	"github.com/napuu/gpsp-bot/pkg/utils"
 )
 
@@ -136,10 +137,31 @@ func checkAndCompress(input string, maxSizeMB float64) string {
 func (u *VideoPostprocessingHandler) Execute(m *Context) {
 	slog.Debug("Entering VideoPostprocessingHandler")
 	shouldTryPostprocessing := <-m.cutVideoArgsParsed
+
 	if m.action == DownloadVideo {
+		var startSeconds, durationSeconds float64
 		if shouldTryPostprocessing {
-			startSeconds := <-m.startSeconds
-			durationSeconds := <-m.durationSeconds
+			startSeconds = <-m.startSeconds
+			durationSeconds = <-m.durationSeconds
+		}
+
+		if config.IsApiVideoEnabled() {
+			slog.Info("api.video is enabled, trying to use it for post-processing")
+			processedPath, err := utils.UploadAndCutVideo(m.finalVideoPath, startSeconds, durationSeconds)
+			if err != nil {
+				slog.Error("api.video post-processing failed, falling back to ffmpeg", "error", err)
+			} else {
+				slog.Info("api.video post-processing successful")
+				m.finalVideoPath = processedPath
+				// Compression is handled by api.video, maybe just check size
+				m.finalVideoPath = checkAndCompress(m.finalVideoPath, 10)
+				u.next.Execute(m)
+				return
+			}
+		}
+
+		slog.Info("Using ffmpeg for post-processing")
+		if shouldTryPostprocessing {
 			videoID := uuid.New().String()
 			filePath := fmt.Sprintf("/tmp/%s.mp4", videoID)
 			err := cutVideo(m.finalVideoPath, filePath, startSeconds, durationSeconds)
