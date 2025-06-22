@@ -8,4 +8,4 @@ WORKDIR /app
 COPY . .
 
 RUN go build .
-ENTRYPOINT ["./gpsp-bot"]
+ENTRYPOINT ["./gpsp-bot telegram"]

@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 2,
+  "imageName": "nexus.jukk.it/jukki/kld-bot",
+  "caproverApp": "kld-bot",
+  "caproverUrl": "https://captain.cap.jukk.it"
+}
