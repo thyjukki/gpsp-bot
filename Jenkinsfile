@@ -5,7 +5,7 @@ pipeline {
     disableConcurrentBuilds()
   }
   triggers {
-    cron('H 4/* 0 0 1-5')
+    cron('H 2 * * *')
   }
   stages {
     /*stage("SonarQube Analysis") {
@@ -31,7 +31,7 @@ pipeline {
     stage("Build") {
       steps {
         script {
-          app = docker.build("jukki/kld-bot")
+          app = docker.build("jukki/kld-bot", "-f ./Containerfile .")
         }
       }
     }
