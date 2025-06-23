@@ -18,9 +18,7 @@ pipeline {
       }
       steps {
         script {
-          youtube_dlp_version = sh(script: "pip show yt-dlp | grep Version | cut -d ' ' -f 2", returnStdout: true).trim()
-
-          echo "yt-dlp version: ${youtube_dlp_version}"
+          youtube_dlp_version = sh(script: "pip index versions yt-dlp | grep yt-dlp | head -n 1 | awk '{print \$2}' | tr -d '()'", returnStdout: true).trim()
         }
       }
     }
@@ -28,7 +26,7 @@ pipeline {
       steps {
         script {
           sh "mv .containerignore .dockerignore"
-          app = docker.build("jukki/kld-bot", "-f ./Containerfile .")
+          app = docker.build("jukki/kld-bot", "--build-arg YOUTUBE_DLP_VERSION=${youtube_dlp_version} -f ./Containerfile .")
         }
       }
     }
