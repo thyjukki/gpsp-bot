@@ -26,7 +26,9 @@ pipeline {
       steps {
         script {
           sh "mv .containerignore .dockerignore"
-          app = docker.build("jukki/kld-bot", "--build-arg YOUTUBE_DLP_VERSION=${youtube_dlp_version} -f ./Containerfile .")
+          docker.withRegistry('https://nexus.jukk.it/docker-local', 'nexus-jenkins-user' ) {
+          app = docker.build("docker-local/jukki/kld-bot", "--build-arg YOUTUBE_DLP_VERSION=${youtube_dlp_version} -f ./Containerfile .")
+          }
         }
       }
     }
